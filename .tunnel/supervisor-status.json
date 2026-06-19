@@ -1,0 +1,17 @@
+{
+  "supervisorPid": 12596,
+  "backendPid": 16588,
+  "tunnelPid": 15172,
+  "tunnelProcessRunning": true,
+  "fallbackPid": 26552,
+  "fallbackProcessRunning": true,
+  "tunnelState": "error",
+  "requestedPublicUrl": null,
+  "activePublicUrl": "https://worcester-workers-crucial-soup.trycloudflare.com",
+  "fallbackPublicUrl": "https://worcester-workers-crucial-soup.trycloudflare.com",
+  "backendFailures": 0,
+  "stopping": false,
+  "checkedAt": "2026-06-17T06:47:09.598Z",
+  "backendHealthy": true,
+  "tunnelConnected": false
+}

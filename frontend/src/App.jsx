@@ -1,0 +1,151 @@
+import { useEffect, useMemo, useState } from 'react';
+
+import Chat from './pages/Chat';
+import Login from './pages/Login';
+import SearchPage from './pages/SearchPage';
+import {
+  completeGoogleRedirectSignIn,
+  restoreGoogleSession,
+  signOutGoogle
+} from './services/firebaseAuth';
+import {
+  getStoredUser,
+  getStoredToken,
+  loginWithFirebaseIdToken,
+  logout as clearSession,
+  me,
+  setStoredUser,
+  setStoredToken
+} from './services/api';
+
+function App() {
+  const [token, setToken] = useState(() => getStoredToken());
+  const [user, setUser] = useState(() => (getStoredToken() ? getStoredUser() : null));
+  const [checkingSession, setCheckingSession] = useState(true);
+  const [authError, setAuthError] = useState('');
+  const isSearchPage = window.location.pathname === '/search';
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadUser() {
+      try {
+        let currentToken = token;
+        let current;
+        await completeGoogleRedirectSignIn();
+        const googleSession = await restoreGoogleSession();
+
+        if (currentToken) {
+          current = await me(currentToken);
+
+          if (current.user?.authProvider === 'firebase-google') {
+            if (!googleSession) {
+              clearSession();
+              if (mounted) {
+                setToken(null);
+                setUser(null);
+              }
+              return;
+            }
+
+            if (
+              googleSession.uid &&
+              current.user.firebaseUid &&
+              googleSession.uid !== current.user.firebaseUid
+            ) {
+              const result = await loginWithFirebaseIdToken(googleSession.idToken);
+              currentToken = result.token;
+              current = result;
+              setStoredToken(result.token);
+              if (mounted) {
+                setToken(result.token);
+              }
+            }
+          }
+        } else {
+          if (!googleSession) {
+            return;
+          }
+
+          const result = await loginWithFirebaseIdToken(googleSession.idToken);
+          currentToken = result.token;
+          current = result;
+          setStoredToken(result.token);
+          if (mounted) {
+            setToken(result.token);
+          }
+        }
+
+        if (mounted) {
+          setStoredUser(current.user);
+          setUser(current.user);
+        }
+      } catch (_error) {
+        clearSession();
+        if (mounted) {
+          setToken(null);
+          setUser(null);
+          setAuthError(_error?.message || 'Google sign-in could not be completed.');
+        }
+      } finally {
+        if (mounted) {
+          setCheckingSession(false);
+        }
+      }
+    }
+
+    loadUser();
+
+    return () => {
+      mounted = false;
+    };
+  }, [token]);
+
+  const session = useMemo(
+    () => ({
+      token,
+      user
+    }),
+    [token, user]
+  );
+
+  async function handleGoogleLogin(idToken) {
+    setAuthError('');
+    const result = await loginWithFirebaseIdToken(idToken);
+    setStoredToken(result.token);
+    setStoredUser(result.user);
+    setToken(result.token);
+    setUser(result.user);
+  }
+
+  async function handleLogout() {
+    clearSession();
+
+    try {
+      await signOutGoogle();
+    } finally {
+      setToken(null);
+      setUser(null);
+    }
+  }
+
+  if (checkingSession) {
+    return (
+      <main className="appCenter">
+        <div className="loader" aria-label="Checking session" />
+      </main>
+    );
+  }
+
+  if (!token || !user) {
+    return <Login initialError={authError} onGoogleLogin={handleGoogleLogin} />;
+  }
+
+  if (isSearchPage) {
+    return <SearchPage session={session} onLogout={handleLogout} />;
+  }
+
+  return <Chat key={user.firebaseUid || user.username} session={session} onLogout={handleLogout} />;
+}
+
+export default App;

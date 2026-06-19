@@ -1,0 +1,128 @@
+const assert = require('node:assert/strict');
+const test = require('node:test');
+
+const ChatGPTService = require('./chatgpt');
+
+test('parallel request pages use independent tabs and close after use', async () => {
+  const service = new ChatGPTService({
+    maxConcurrentTabs: 100,
+    parallelTabs: true
+  });
+  const closedPages = [];
+  let pageNumber = 0;
+
+  service.context = {
+    async newPage() {
+      pageNumber += 1;
+      const id = pageNumber;
+      let closed = false;
+
+      return {
+        id,
+        keyboard: {
+          async press() {}
+        },
+        isClosed() {
+          return closed;
+        },
+        async close() {
+          closed = true;
+          closedPages.push(id);
+        }
+      };
+    },
+    pages() {
+      return [];
+    }
+  };
+
+  const pages = await Promise.all(
+    Array.from({ length: 100 }, () => service.createRequestPage())
+  );
+
+  assert.equal(new Set(pages.map((page) => page.id)).size, 100);
+  assert.equal(service.getQueueStatus().activeTabs, 100);
+
+  await Promise.all(pages.map((page) => service.closeRequestPage(page)));
+  assert.equal(service.getQueueStatus().activeTabs, 0);
+  assert.deepEqual(
+    closedPages.sort((left, right) => left - right),
+    Array.from({ length: 100 }, (_, index) => index + 1)
+  );
+});
+
+test('shared browser mode serializes different Kyrovia account sessions', () => {
+  const service = new ChatGPTService({ maxConcurrentTabs: 10 });
+
+  assert.equal(service.resolveQueueKey('account-a:chat-1'), 'chatgpt-browser');
+  assert.equal(service.resolveQueueKey('account-b:chat-1'), 'chatgpt-browser');
+  assert.equal(service.getQueueStatus().mode, 'shared-browser-serial');
+});
+
+test('parallel tab mode keeps session-specific queue keys when explicitly enabled', () => {
+  const service = new ChatGPTService({
+    maxConcurrentTabs: 10,
+    parallelTabs: true
+  });
+
+  assert.equal(service.resolveQueueKey('account-a:chat-1'), 'account-a:chat-1');
+  assert.equal(service.resolveQueueKey('account-b:chat-1'), 'account-b:chat-1');
+  assert.equal(service.resolveQueueKey(''), 'chatgpt-browser');
+  assert.equal(service.getQueueStatus().mode, 'parallel-tabs');
+});
+
+test('one hundred messages from the same conversation use request sessions concurrently', async () => {
+  const service = new ChatGPTService({
+    maxConcurrentTabs: 100,
+    parallelTabs: true,
+    queueMaxPending: 200,
+    queueWaitTimeoutMs: 5000
+  });
+  let release;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  const startedRequestSessions = [];
+
+  service.sendMessageNow = async (_prompt, _files, _modelId, options) => {
+    startedRequestSessions.push(options.sessionKey);
+    await gate;
+    return options.sessionKey;
+  };
+
+  const requests = Array.from({ length: 100 }, (_, index) =>
+    service.sendMessage(`message-${index}`, [], 'nova-instant', {
+      sessionKey: 'shared-conversation',
+      requestSessionKey: `generation-${index}`
+    })
+  );
+
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(service.getQueueStatus().activeCount, 100);
+  assert.equal(startedRequestSessions.length, 100);
+  assert.deepEqual(new Set(startedRequestSessions), new Set(['shared-conversation']));
+
+  release();
+  assert.equal((await Promise.all(requests)).length, 100);
+});
+
+test('detects Chromium persistent profile lock startup errors', () => {
+  const service = new ChatGPTService();
+
+  assert.equal(
+    service.isProfileLockError(
+      new Error('Failed to create a ProcessSingleton for your profile directory')
+    ),
+    true
+  );
+  assert.equal(service.isProfileLockError(new Error('Navigation timed out')), false);
+});
+
+test('headed Chromium starts minimized without being positioned off-screen', () => {
+  const service = new ChatGPTService({ headless: false });
+  const launchArgs = service.getLaunchArgs();
+
+  assert.equal(launchArgs.includes('--start-minimized'), true);
+  assert.equal(launchArgs.some((argument) => argument.startsWith('--window-position=')), false);
+});

@@ -1,0 +1,225 @@
+const cors = require('cors');
+const dotenv = require('dotenv');
+const express = require('express');
+const fs = require('fs');
+const helmet = require('helmet');
+const path = require('path');
+const rateLimit = require('express-rate-limit');
+
+const { loadConfig } = require('./config');
+const appsRoutes = require('./routes/apps');
+const authRoutes = require('./routes/auth');
+const chatRoutes = require('./routes/chat');
+const codeRoutes = require('./routes/code');
+const healthRoutes = require('./routes/health');
+const searchRoutes = require('./routes/search');
+const whatsappRoutes = require('./routes/whatsapp');
+const ChatGPTService = require('./services/chatgpt');
+const { WhatsAppManager } = require('./services/whatsappManager');
+
+dotenv.config();
+
+const config = loadConfig();
+const app = express();
+const chatgpt = new ChatGPTService(config.chatgpt);
+const whatsappManager = new WhatsAppManager(config.whatsapp, {
+  responseHandler: async (message, account) => {
+    const senderLabel = message.senderName || message.senderJid || 'WhatsApp user';
+    const prompt = [
+      'You are Kyrovia. Generate the exact WhatsApp message body to send to the sender.',
+      'Return only the final reply text. Do not include labels, quotes, markdown fences, explanations, or phrases like "Suggested reply:" or "You can reply:".',
+      'Use plain text and keep it concise unless the sender asks for detail.',
+      `Sender: ${senderLabel}`,
+      'Incoming WhatsApp message:',
+      message.text
+    ].join('\n');
+    const result = await chatgpt.sendMessage(prompt, [], 'nova-instant', {
+      sessionKey: `whatsapp:${account.storageId}:${message.senderJid || message.chatJid}`
+    });
+
+    return result.text;
+  }
+});
+const frontendDist = path.resolve(__dirname, '../frontend/dist');
+const hasFrontendBuild = fs.existsSync(path.join(frontendDist, 'index.html'));
+
+app.locals.chatgpt = chatgpt;
+app.locals.config = config;
+app.locals.whatsappManager = whatsappManager;
+
+app.set('trust proxy', 1);
+app.disable('x-powered-by');
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+    crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' }
+  })
+);
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/api/')) {
+    next();
+    return;
+  }
+
+  const origin = req.get('origin');
+  const forwardedProto = String(req.get('x-forwarded-proto') || '').split(',')[0].trim();
+  const forwardedHost = String(req.get('x-forwarded-host') || '').split(',')[0].trim();
+  const requestOrigin = `${forwardedProto || req.protocol}://${forwardedHost || req.get('host')}`;
+  const allowedOrigins = [
+    ...config.server.corsOrigins,
+    config.server.publicAppUrl
+  ].filter(Boolean);
+
+  if (!origin || origin === requestOrigin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+    cors({
+      origin: origin || false,
+      credentials: true,
+      exposedHeaders: [
+        'X-Kyrovia-Request-Id',
+        'X-Kyrovia-Session-Id',
+        'X-Kyrovia-Generation-Session-Id'
+      ],
+      allowedHeaders: ['Authorization', 'Content-Type', 'Accept', 'X-Kyrovia-Request-Id']
+    })(req, res, next);
+    return;
+  }
+
+  res.status(403).json({ message: `Origin ${origin} is not allowed by CORS` });
+});
+app.use(express.json({ limit: config.server.jsonLimit }));
+
+const apiLimiter = rateLimit({
+  windowMs: config.server.rateLimitWindowMs,
+  limit: config.server.rateLimitMax,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  skip: (req) =>
+    req.method === 'OPTIONS' ||
+    /^\/api\/chat\/results\/[^/]+\/?$/.test(req.originalUrl),
+  message: { message: 'Too many requests. Please wait a moment and try again.' }
+});
+const authLimiter = rateLimit({
+  windowMs: config.server.rateLimitWindowMs,
+  limit: config.server.authRateLimitMax,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { message: 'Too many login attempts. Please wait a moment and try again.' }
+});
+const aiLimiter = rateLimit({
+  windowMs: config.server.rateLimitWindowMs,
+  limit: config.server.aiRateLimitMax,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { message: 'AI request limit reached. Please wait before trying again.' }
+});
+
+app.get('/api/health', (_req, res) => {
+  const queue = chatgpt.getQueueStatus();
+  res.json({
+    ok: true,
+    service: 'kyrovia',
+    browserReady: chatgpt.ready,
+    aiProvider: 'chatgpt-browser',
+    queue: {
+      processing: queue.processing,
+      active: queue.activeCount,
+      activeTabs: queue.activeTabs,
+      openTabs: queue.openTabs,
+      pending: queue.pending,
+      maxPending: queue.maxPending,
+      maxConcurrent: queue.maxConcurrent,
+      mode: queue.mode,
+      parallelTabs: queue.parallelTabs
+    },
+    uptimeSeconds: Math.round(process.uptime()),
+    checkedAt: new Date().toISOString()
+  });
+});
+
+app.use('/api/auth', authLimiter, authRoutes);
+app.use('/api/chat/send', aiLimiter);
+app.use('/api/apps/generate', aiLimiter);
+app.use('/api/search/google', aiLimiter);
+app.use('/api', apiLimiter);
+app.use('/api/chat', chatRoutes);
+app.use('/api/code', codeRoutes);
+app.use('/api/health', healthRoutes);
+app.use('/api/search', searchRoutes);
+app.use('/api/apps', appsRoutes);
+app.use('/api/whatsapp', whatsappRoutes);
+
+if (hasFrontendBuild) {
+  app.use(express.static(frontendDist, { maxAge: 0, index: false }));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api/')) {
+      next();
+      return;
+    }
+
+    res.sendFile(path.join(frontendDist, 'index.html'));
+  });
+}
+
+app.use((req, res) => {
+  res.status(404).json({ message: `Route not found: ${req.method} ${req.originalUrl}` });
+});
+
+app.use((err, _req, res, _next) => {
+  const status = err.type === 'entity.parse.failed' ? 400 : err.status || err.statusCode || 500;
+  const message = status >= 500 && !err.expose ? 'Unexpected server error' : err.message;
+
+  if (status >= 500 && !err.expose) {
+    console.error(err);
+  }
+
+  res.status(status).json({ message });
+});
+
+let server = null;
+let shuttingDown = false;
+
+async function start() {
+  try {
+    await chatgpt.init();
+  } catch (error) {
+    console.warn('The ChatGPT browser did not start cleanly. Chat requests will fail until this is fixed.');
+    console.warn(error.message);
+  }
+
+  server = app.listen(config.server.port, () => {
+    console.log(`API listening at http://localhost:${config.server.port}`);
+  });
+}
+
+async function shutdown(signal) {
+  if (shuttingDown) {
+    return;
+  }
+
+  shuttingDown = true;
+  console.log(`Received ${signal}. Closing services...`);
+
+  if (server) {
+    await new Promise((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    }).catch((error) => {
+      console.warn(`HTTP server did not close cleanly: ${error.message}`);
+    });
+  }
+
+  await chatgpt.close().catch((error) => {
+    console.warn(`ChatGPT browser did not close cleanly: ${error.message}`);
+  });
+  await whatsappManager.disconnectAll().catch((error) => {
+    console.warn(`WhatsApp sockets did not close cleanly: ${error.message}`);
+  });
+
+  process.exit(0);
+}
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
+process.on('SIGUSR2', shutdown);
+
+start();

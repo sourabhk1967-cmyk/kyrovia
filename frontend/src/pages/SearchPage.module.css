@@ -1,0 +1,720 @@
+.searchPage {
+  overflow-x: hidden;
+  overflow-y: auto;
+  min-height: 100vh;
+  height: 100vh;
+  scrollbar-color: #6f7275 #f1f3f4;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  background: #ffffff;
+  color: #202124;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.searchPage::-webkit-scrollbar {
+  width: 15px;
+}
+
+.searchPage::-webkit-scrollbar-track {
+  background: #f1f3f4;
+}
+
+.searchPage::-webkit-scrollbar-thumb {
+  border: 3px solid #f1f3f4;
+  border-radius: 999px;
+  background: #74777a;
+}
+
+.searchPage::-webkit-scrollbar-thumb:hover {
+  background: #5f6368;
+}
+
+.searchHeader {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: grid;
+  min-height: 88px;
+  grid-template-columns: 180px minmax(260px, 1080px) auto;
+  align-items: center;
+  gap: 24px;
+  border-bottom: 1px solid #dadce0;
+  background: #ffffff;
+  padding: 10px 36px 10px 64px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #202124;
+  font-size: 1.85rem;
+  font-weight: 850;
+  letter-spacing: -0.05em;
+  text-decoration: none;
+}
+
+.brand img {
+  width: 24px;
+  height: 24px;
+}
+
+.searchForm {
+  display: grid;
+  min-height: 64px;
+  grid-template-columns: 1fr 46px 1px 58px;
+  align-items: center;
+  overflow: hidden;
+  width: min(100%, 1080px);
+  border: 1px solid #dadce0;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(60, 64, 67, 0.16);
+}
+
+.searchForm input {
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #202124;
+  font: inherit;
+  font-size: 1.25rem;
+  padding: 0 0 0 24px;
+}
+
+.searchForm button {
+  display: inline-flex;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: #3c4043;
+  cursor: pointer;
+}
+
+.searchForm > span {
+  width: 1px;
+  height: 32px;
+  background: #dadce0;
+}
+
+.headerActions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+}
+
+.headerActions button {
+  display: inline-flex;
+  width: 38px;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #3c4043;
+  cursor: pointer;
+}
+
+.headerActions button:hover {
+  background: #f1f3f4;
+}
+
+.userChip img {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  object-fit: cover;
+}
+
+.searchTabs {
+  position: sticky;
+  top: 88px;
+  z-index: 25;
+  border-bottom: 1px solid #dadce0;
+  background: #ffffff;
+  padding-left: 260px;
+}
+
+.searchTabs > div {
+  display: flex;
+  min-height: 78px;
+  align-items: flex-end;
+  gap: 28px;
+}
+
+.searchTabs button {
+  position: relative;
+  display: inline-flex;
+  height: 50px;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  background: transparent;
+  color: #70757a;
+  cursor: pointer;
+  font: inherit;
+  font-size: 1.02rem;
+  font-weight: 700;
+  padding: 0;
+}
+
+.searchTabs .tabActive {
+  color: #202124;
+}
+
+.tabActive::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 3px;
+  background: #202124;
+  content: "";
+}
+
+.resultsShell {
+  width: min(100% - 48px, 1380px);
+  margin: 0 auto;
+  padding: 54px 0 40px;
+}
+
+.resultStats {
+  display: flex;
+  width: min(100%, 820px);
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  color: #70757a;
+  font-size: 0.96rem;
+}
+
+.resultStats label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.resultStats select {
+  border: 1px solid #dadce0;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #202124;
+  cursor: pointer;
+  padding: 7px 28px 7px 10px;
+  font: inherit;
+}
+
+.loadingBar,
+.errorBox {
+  width: min(100%, 820px);
+  margin-top: 18px;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-weight: 700;
+}
+
+.loadingBar {
+  background: #f1f3f4;
+  color: #3c4043;
+}
+
+.errorBox {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.webResults {
+  width: min(100%, 820px);
+  margin-top: 28px;
+}
+
+.webResult {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: flex-start;
+  gap: 12px;
+  padding: 19px 0 20px;
+}
+
+.resultFavicon {
+  position: relative;
+  overflow: hidden;
+  width: 36px;
+  height: 36px;
+  border: 1px solid #dadce0;
+  border-radius: 999px;
+  background: #f8fafd;
+  color: #4d5156;
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.resultFavicon img,
+.resultFavicon span {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+}
+
+.resultFavicon img {
+  object-fit: cover;
+}
+
+.resultFavicon span {
+  background: #f1f3f4;
+  color: #1a73e8;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.resultText {
+  min-width: 0;
+}
+
+.resultTopLine {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.resultIdentity {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.resultSiteName {
+  overflow: hidden;
+  color: #202124;
+  font-size: 1.08rem;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resultDisplayUrl {
+  overflow: hidden;
+  margin-top: 2px;
+  color: #4d5156;
+  font-size: 0.9rem;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resultTopLine button {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #5f6368;
+  cursor: pointer;
+  margin-top: 6px;
+}
+
+.resultTopLine button:hover {
+  background: #f1f3f4;
+}
+
+.resultTitle {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  color: #1a0dab;
+  font-size: 1.52rem;
+  line-height: 1.23;
+  margin-top: 8px;
+  text-decoration: none;
+}
+
+.resultTitle:hover {
+  text-decoration: underline;
+}
+
+.resultText p {
+  margin: 6px 0 0;
+  color: #3c4043;
+  font-size: 1.04rem;
+  line-height: 1.45;
+}
+
+.resultText p strong {
+  font-weight: 800;
+}
+
+.resultText p a {
+  color: #3c4043;
+  text-decoration: underline;
+}
+
+.verified {
+  display: inline-flex;
+  margin-top: 9px;
+  border: 1px solid #bbf7d0;
+  border-radius: 999px;
+  background: #f0fdf4;
+  color: #166534;
+  padding: 4px 9px;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.resultThumb {
+  overflow: hidden;
+  width: 132px;
+  height: 96px;
+  flex: 0 0 132px;
+  border-radius: 12px;
+  background: #f1f3f4;
+}
+
+.resultThumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.imageResults {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 32px;
+}
+
+.imageResults a {
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: #ffffff;
+  color: #202124;
+  text-decoration: none;
+}
+
+.imageResults img,
+.imageResults a > span {
+  display: flex;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  align-items: center;
+  justify-content: center;
+  background: #f1f3f4;
+  object-fit: cover;
+}
+
+.imageResults strong,
+.imageResults small {
+  display: block;
+  overflow: hidden;
+  padding-inline: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.imageResults strong {
+  padding-top: 11px;
+  color: #202124;
+  font-size: 0.9rem;
+}
+
+.imageResults small {
+  padding-bottom: 12px;
+  color: #70757a;
+  font-size: 0.78rem;
+}
+
+.peopleAlsoSearch {
+  width: min(100%, 820px);
+  margin-top: 38px;
+}
+
+.peopleAlsoSearch h2 {
+  margin: 0 0 14px;
+  color: #202124;
+  font-size: 1.62rem;
+  font-weight: 500;
+}
+
+.peopleAlsoSearch > div {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 20px;
+}
+
+.peopleAlsoSearch button {
+  display: flex;
+  min-height: 64px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 0;
+  border-radius: 9px;
+  background: #f1f3f4;
+  color: #202124;
+  cursor: pointer;
+  font: inherit;
+  font-size: 1.05rem;
+  padding: 12px 18px 12px 20px;
+  text-align: left;
+}
+
+.peopleAlsoSearch button:hover {
+  background: #e9ecef;
+}
+
+.peopleAlsoSearch svg {
+  flex: 0 0 auto;
+  color: #70757a;
+}
+
+.fullPagination {
+  width: min(100%, 820px);
+  margin-top: 50px;
+  text-align: center;
+}
+
+.paginationBrand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #1a0dab;
+  font-size: 2.5rem;
+  font-weight: 850;
+  letter-spacing: -0.06em;
+}
+
+.paginationBrand img {
+  width: 24px;
+  height: 24px;
+}
+
+.fullPagination > div:last-child {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 13px;
+  margin-top: 6px;
+}
+
+.fullPagination button {
+  border: 0;
+  background: transparent;
+  color: #1a0dab;
+  cursor: pointer;
+  font: inherit;
+  font-size: 1rem;
+  padding: 4px;
+}
+
+.fullPagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.fullPagination .pageActive {
+  color: #202124;
+  font-weight: 800;
+}
+
+.searchFooter {
+  margin-top: 24px;
+  background: #f2f2f2;
+  color: #3c4043;
+  padding: 28px 0 28px 260px;
+  font-size: 0.98rem;
+}
+
+.searchFooter > div,
+.searchFooter nav {
+  display: flex;
+  max-width: 1380px;
+  align-items: center;
+  gap: 18px;
+  border-bottom: 1px solid #dadce0;
+  padding: 12px 0;
+}
+
+.searchFooter > div:first-child {
+  font-size: 0;
+}
+
+.searchFooter > div:first-child::before {
+  content: "Results are personalised - Try without personalisation";
+  font-size: 0.98rem;
+}
+
+.searchFooter nav {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.searchFooter a {
+  color: #1a0dab;
+  text-decoration: none;
+}
+
+.searchFooter a:hover {
+  text-decoration: underline;
+}
+
+.scrollControls {
+  position: fixed;
+  right: 24px;
+  bottom: 28px;
+  z-index: 40;
+  display: grid;
+  overflow: hidden;
+  border: 1px solid #dadce0;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 4px 16px rgba(60, 64, 67, 0.22);
+}
+
+.scrollControls button {
+  display: inline-flex;
+  width: 42px;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: #ffffff;
+  color: #3c4043;
+  cursor: pointer;
+}
+
+.scrollControls button:hover:not(:disabled) {
+  background: #f1f3f4;
+}
+
+.scrollControls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.32;
+}
+
+.scrollControls > span {
+  height: 1px;
+  background: #e5e7eb;
+}
+
+.scrollRail {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 45;
+  width: 14px;
+  pointer-events: none;
+  background: #f1f3f4;
+}
+
+.scrollRail span {
+  position: absolute;
+  top: 6px;
+  right: 3px;
+  display: block;
+  width: 8px;
+  height: var(--scroll-thumb-height, 80px);
+  border-radius: 999px;
+  background: #74777a;
+  box-shadow: inset 0 0 0 1px rgba(60, 64, 67, 0.14);
+  transform: translateY(var(--scroll-thumb-offset, 0));
+  transition: height 160ms ease, transform 160ms ease;
+}
+
+@media (max-width: 980px) {
+  .searchHeader {
+    grid-template-columns: 1fr;
+    padding: 16px;
+  }
+
+  .headerActions {
+    display: none;
+  }
+
+  .searchTabs {
+    top: 130px;
+    overflow-x: auto;
+    padding-left: 16px;
+  }
+
+  .searchTabs > div {
+    min-width: max-content;
+  }
+
+  .resultsShell {
+    width: calc(100% - 32px);
+    padding-top: 26px;
+  }
+
+  .imageResults {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .searchFooter {
+    padding-left: 16px;
+  }
+
+  .scrollControls {
+    right: 14px;
+    bottom: 16px;
+  }
+}
+
+@media (max-width: 620px) {
+  .brand {
+    font-size: 1.5rem;
+  }
+
+  .searchForm {
+    min-height: 54px;
+    grid-template-columns: 1fr 40px 1px 48px;
+  }
+
+  .searchTabs {
+    top: 118px;
+  }
+
+  .searchForm input {
+    font-size: 1rem;
+    padding-left: 16px;
+  }
+
+  .resultStats,
+  .peopleAlsoSearch > div {
+    grid-template-columns: 1fr;
+  }
+
+  .resultStats {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .webResult {
+    gap: 12px;
+  }
+
+  .resultThumb {
+    display: none;
+  }
+
+  .imageResults {
+    grid-template-columns: 1fr;
+  }
+
+  .searchFooter > div,
+  .searchFooter nav {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
