@@ -42,6 +42,7 @@ const FALLBACK_FILES_PROMPT = 'Please review the attached files.';
 const MAX_SAFE_FILENAME_LENGTH = 160;
 const MULTIPART_FILE_FIELD = 'files';
 const DEFAULT_MODEL_ID = 'nova-instant';
+const SCHEDULED_TASK_INTENT = 'scheduled-task';
 const JSON_HEARTBEAT_INTERVAL_MS = 8000;
 const DELIVERY_REQUEST_ID_RE = /^[a-z0-9][a-z0-9_-]{15,127}$/i;
 const SUPPORTED_MODEL_IDS = new Set(['nova-instant', 'nova-thinking', 'nova-agent', 'nova-agent-swarm']);
@@ -202,6 +203,13 @@ function wantsGenerationEvents(req) {
     .includes('application/x-ndjson');
 }
 
+function wantsAsyncGeneration(req) {
+  return String(req.get('prefer') || '')
+    .toLowerCase()
+    .split(',')
+    .some((value) => value.trim() === 'respond-async');
+}
+
 function resolveDeliveryRequestId(req) {
   const requestedId = String(req.get('x-kyrovia-request-id') || '').trim();
   return DELIVERY_REQUEST_ID_RE.test(requestedId) ? requestedId : randomUUID();
@@ -290,7 +298,7 @@ function getChatService(req) {
   const service = req.app.locals.chatgpt;
 
   if (!service) {
-    throw createHttpError(503, 'Kyrovia ChatGPT browser service is not available');
+    throw createHttpError(503, 'Kyrovia browser service is not available');
   }
 
   return service;
@@ -298,6 +306,10 @@ function getChatService(req) {
 
 function imageAssetUrl(_req, imageName) {
   return `/api/chat/images/${encodeURIComponent(imageName)}`;
+}
+
+function imageBufferDataUrl(buffer, mimeType) {
+  return `data:${mimeType};base64,${buffer.toString('base64')}`;
 }
 
 function isLocalImageAssetUrl(value = '') {
@@ -321,9 +333,9 @@ async function prepareImagesForFrontend(req, images = []) {
           const assetUrl = imageAssetUrl(req, downloadedAsset.name);
           preparedImages.push({
             ...image,
-            src: assetUrl,
+            src: imageBufferDataUrl(remoteImage.buffer, downloadedAsset.mimeType),
             sourceUrl: assetUrl,
-            delivery: 'backend-asset',
+            delivery: 'inline-backend-asset',
             mimeType: downloadedAsset.mimeType,
             size: downloadedAsset.size
           });
@@ -359,13 +371,14 @@ async function prepareImagesForFrontend(req, images = []) {
     }
 
     const assetUrl = imageAssetUrl(req, asset.name);
-    const sourceUrl = /^data:image\//i.test(String(image.sourceUrl || '')) ? assetUrl : image.sourceUrl;
+    const sourceUrl =
+      !image.sourceUrl || /^data:image\//i.test(String(image.sourceUrl)) ? assetUrl : image.sourceUrl;
 
     preparedImages.push({
       ...image,
-      src: assetUrl,
+      src,
       sourceUrl,
-      delivery: 'backend-asset',
+      delivery: 'inline-backend-asset',
       mimeType: image.mimeType || asset.mimeType,
       size: asset.size
     });
@@ -458,6 +471,46 @@ function createHumanTonePrompt(message) {
     '',
     `Text to rewrite: ${message}`
   ].join('\n');
+}
+
+function createScheduledTaskPrompt(
+  message,
+  user,
+  personalizationInstruction = '',
+  scheduledSettings = {}
+) {
+  const identityInstruction = kyroviaIdentityInstruction();
+  const userContextInstruction = kyroviaUserContextInstruction(user);
+  const approvalMode = ['ask', 'safe', 'full'].includes(scheduledSettings.approvalMode)
+    ? scheduledSettings.approvalMode
+    : 'ask';
+  const connectedApps = Array.isArray(scheduledSettings.connectedApps)
+    ? scheduledSettings.connectedApps.join(', ')
+    : '';
+  const grantedScopes = Object.entries(scheduledSettings.deviceScopes || {})
+    .filter(([, granted]) => granted === true)
+    .map(([scopeId]) => scopeId)
+    .join(', ');
+
+  return [
+    identityInstruction,
+    userContextInstruction,
+    personalizationInstruction,
+    'The user opened Kyrovia Scheduled and clicked add for this exact scheduled request:',
+    message,
+    '',
+    'Help configure it as a recurring task, reminder, or monitor.',
+    'Ask only the missing questions needed to finish setup, such as topics, timing, timezone, cadence, sources, delivery channel, and whether apps like email, calendar, WhatsApp, web search, health, or shopping sources should be connected.',
+    `Current approval mode: ${approvalMode}.`,
+    `Connected capabilities: ${connectedApps || 'none yet'}.`,
+    `Granted device scopes: ${grantedScopes || 'none yet'}.`,
+    'Never claim access to arbitrary phone or laptop apps, files, accounts, sensors, or external services. Kyrovia may use only explicitly connected apps and permissions granted by the user.',
+    'For ask mode, request confirmation before every external action. For safe mode, still request confirmation before sending, editing, deleting, purchasing, sharing, or publishing. Full mode applies only within explicitly granted scopes and never bypasses operating-system, browser, or app permissions.',
+    'Do not say the schedule is running yet. Explain that you can activate it after the user confirms the missing details.',
+    'Keep the response concise and practical.'
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 function createAppPrompt(message, app, user, personalizationInstruction = '') {
@@ -902,6 +955,7 @@ router.post('/send', parseSendRequest, async (req, res, next) => {
   let abortOnClose = null;
   let deliveryRequestId = '';
   let generationStarted = false;
+  const respondAsync = wantsAsyncGeneration(req);
 
   try {
     const chatConfig = req.app.locals.config.chat;
@@ -918,6 +972,7 @@ router.post('/send', parseSendRequest, async (req, res, next) => {
     const model = normalizeModel(modelInput);
     const app = normalizeApp(appInput);
     const conversationId = normalizeConversationId(conversationInput);
+    const scheduledIntent = String(intentInput || '').trim() === SCHEDULED_TASK_INTENT;
     const sessionKey = createChatSessionKey(req.user, conversationId);
     const identityRequest = detectIdentityRequest(message);
     const workspace = await readWorkspace(req.user.username);
@@ -962,6 +1017,34 @@ router.post('/send', parseSendRequest, async (req, res, next) => {
     }
 
     deliveryRequestId = resolveDeliveryRequestId(req);
+    const existingGeneration = generationResults.get(deliveryRequestId, req.user.username);
+
+    if (existingGeneration) {
+      res.set('X-Kyrovia-Request-Id', deliveryRequestId);
+
+      if (existingGeneration.status === 'pending') {
+        return res.status(202).json({
+          requestId: deliveryRequestId,
+          status: 'pending'
+        });
+      }
+
+      if (existingGeneration.status === 'failed') {
+        return res.status(existingGeneration.error?.status || 500).json({
+          error: true,
+          requestId: deliveryRequestId,
+          status: 'failed',
+          message: existingGeneration.error?.message || 'Generation failed.'
+        });
+      }
+
+      return res.json({
+        ...existingGeneration.payload,
+        requestId: deliveryRequestId,
+        deliveryRecovered: true
+      });
+    }
+
     const generationSessionId = randomUUID();
     generationResults.start(deliveryRequestId, req.user.username);
     res.set('X-Kyrovia-Request-Id', deliveryRequestId);
@@ -978,7 +1061,9 @@ router.post('/send', parseSendRequest, async (req, res, next) => {
       }
 
       const streamedMessage = preserveProviderMarkdown(update.text || '');
-      if (!streamedMessage || streamedMessage === lastStreamedMessage) {
+      // The final marker must reach the client even when its text matches the
+      // last partial update, otherwise the completed reply keeps its spinner.
+      if (!streamedMessage || (partial && streamedMessage === lastStreamedMessage)) {
         return;
       }
 
@@ -994,11 +1079,12 @@ router.post('/send', parseSendRequest, async (req, res, next) => {
           artifacts: [],
           conversationUrl: update.conversationUrl || null,
           model: update.model || model,
-          provider: app ? 'kyrovia' : update.provider || 'chatgpt',
+          provider: 'kyrovia',
           app: app || null,
           sessionId: req.user.sessionId,
           generationSessionId,
           imageIntent: false,
+          intent: scheduledIntent ? SCHEDULED_TASK_INTENT : '',
           messageFormat: 'backend-markdown',
           promptAdjusted: promptPlan.adjusted,
           scrapedAt: update.scrapedAt || new Date().toISOString()
@@ -1011,7 +1097,13 @@ router.post('/send', parseSendRequest, async (req, res, next) => {
       }
     };
     res.once('close', abortOnClose);
-    if (wantsGenerationEvents(req)) {
+    if (respondAsync) {
+      res.status(202).json({
+        requestId: deliveryRequestId,
+        generationSessionId,
+        status: 'pending'
+      });
+    } else if (wantsGenerationEvents(req)) {
       eventStream = startGenerationEventStream(res);
       eventStream.send('accepted', {
         requestId: deliveryRequestId,
@@ -1021,15 +1113,22 @@ router.post('/send', parseSendRequest, async (req, res, next) => {
     } else {
       heartbeat = startJsonHeartbeat(res);
     }
+    const providerPrompt = scheduledIntent
+      ? createScheduledTaskPrompt(
+          promptPlan.prompt,
+          req.user,
+          personalizationInstruction,
+          workspace?.scheduledSettings
+        )
+      : createAppPrompt(promptPlan.prompt, app, req.user, personalizationInstruction);
     let result = await service.sendMessage(
-      createAppPrompt(promptPlan.prompt, app, req.user, personalizationInstruction),
+      providerPrompt,
       upload.files,
       model,
       {
         freshChat: promptPlan.imageIntent || promptPlan.interactiveVisualIntent,
         expectImage: promptPlan.imageIntent,
         sessionKey,
-        requestSessionKey: `generation:${generationSessionId}`,
         signal: requestAbortController.signal,
         onResponseUpdate(update) {
           sendStreamedMessage(update, true);
@@ -1080,14 +1179,20 @@ router.post('/send', parseSendRequest, async (req, res, next) => {
         ? createInteractiveVisualPrompt(originalRetryPrompt)
         : originalRetryPrompt;
       result = await service.sendMessage(
-        createAppPrompt(retryPrompt, app, req.user, personalizationInstruction),
+        scheduledIntent
+          ? createScheduledTaskPrompt(
+              retryPrompt,
+              req.user,
+              personalizationInstruction,
+              workspace?.scheduledSettings
+            )
+          : createAppPrompt(retryPrompt, app, req.user, personalizationInstruction),
         [],
         model,
         {
           freshChat: true,
           expectImage: true,
           sessionKey,
-          requestSessionKey: `generation:${generationSessionId}`,
           signal: requestAbortController.signal
         }
       );
@@ -1150,6 +1255,7 @@ router.post('/send', parseSendRequest, async (req, res, next) => {
       generationSessionId,
       queue: queueInfo,
       imageIntent: promptPlan.imageIntent,
+      intent: scheduledIntent ? SCHEDULED_TASK_INTENT : '',
       messageFormat: 'backend-markdown',
       promptAdjusted: promptPlan.adjusted,
       scrapedAt: result.scrapedAt
@@ -1157,8 +1263,16 @@ router.post('/send', parseSendRequest, async (req, res, next) => {
 
     generationResults.complete(deliveryRequestId, req.user.username, payload);
     if (eventStream) {
+      if (responseImages.length) {
+        eventStream.send('message', {
+          requestId: deliveryRequestId,
+          partial: false,
+          data: payload
+        });
+        await new Promise((resolve) => setTimeout(resolve, 1));
+      }
       eventStream.finish(payload);
-    } else {
+    } else if (heartbeat) {
       heartbeat.finish(payload);
     }
     return;
@@ -1182,6 +1296,10 @@ router.post('/send', parseSendRequest, async (req, res, next) => {
           safeError.status
         );
       }
+      return;
+    }
+
+    if (respondAsync && res.writableEnded) {
       return;
     }
 

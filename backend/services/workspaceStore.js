@@ -8,6 +8,7 @@ const MAX_CONVERSATIONS = 200;
 const MAX_MESSAGES = 2000;
 const MAX_LIBRARY_ITEMS = 500;
 const MAX_PROJECTS = 100;
+const MAX_SCHEDULED_TASKS = 200;
 const MAX_DEVICE_USAGE_RECORDS = 3650;
 const MAX_GENERATED_FILES = 12;
 const MAX_ARTIFACTS = 4;
@@ -146,6 +147,62 @@ function normalizeProject(project = {}) {
   };
 }
 
+function normalizeScheduledTask(task = {}) {
+  const now = new Date().toISOString();
+  const createdAt = cleanDate(task.createdAt, now);
+  const cadence = ['Daily', 'Weekdays', 'Weekly', 'Event-based'].includes(task.cadence)
+    ? task.cadence
+    : 'Daily';
+  const delivery = ['Kyrovia chat', 'Email', 'WhatsApp'].includes(task.delivery)
+    ? task.delivery
+    : 'Kyrovia chat';
+
+  return {
+    id: cleanId(task.id, 'scheduled'),
+    title: cleanString(task.title, 'Scheduled task', 180).trim() || 'Scheduled task',
+    prompt: cleanString(task.prompt, '', 8000).trim(),
+    cadence,
+    delivery,
+    active: task.active !== false,
+    status: cleanString(task.status, 'setup', 80).trim() || 'setup',
+    connectedApps: Array.isArray(task.connectedApps)
+      ? task.connectedApps.slice(0, 12).map((appId) => cleanString(appId, '', 120)).filter(Boolean)
+      : [],
+    approvalMode: ['ask', 'safe', 'full'].includes(task.approvalMode) ? task.approvalMode : 'ask',
+    accessScopes: Array.isArray(task.accessScopes)
+      ? task.accessScopes.slice(0, 12).map((scopeId) => cleanString(scopeId, '', 120)).filter(Boolean)
+      : [],
+    createdAt,
+    updatedAt: cleanDate(task.updatedAt, createdAt)
+  };
+}
+
+function normalizeScheduledSettings(settings = {}) {
+  const deviceScopes =
+    settings.deviceScopes && typeof settings.deviceScopes === 'object'
+      ? settings.deviceScopes
+      : {};
+
+  return {
+    approvalMode: ['ask', 'safe', 'full'].includes(settings.approvalMode)
+      ? settings.approvalMode
+      : 'ask',
+    connectedApps: Array.isArray(settings.connectedApps)
+      ? settings.connectedApps
+          .slice(0, 24)
+          .map((appId) => cleanString(appId, '', 120))
+          .filter(Boolean)
+      : ['interests', 'web'],
+    deviceScopes: {
+      notifications: deviceScopes.notifications === true,
+      microphone: deviceScopes.microphone === true,
+      location: deviceScopes.location === true,
+      files: deviceScopes.files === true
+    },
+    updatedAt: cleanDate(settings.updatedAt, '')
+  };
+}
+
 function normalizeIntelligencePreferences(preferences = {}) {
   return {
     memoryEnabled: preferences.memoryEnabled !== false,
@@ -205,6 +262,8 @@ function normalizeMessage(message = {}) {
     messageFormat: message.messageFormat === 'backend-markdown' ? 'backend-markdown' : '',
     appId: cleanString(message.appId, '', 120),
     appName: cleanString(message.appName, '', 160),
+    intent: cleanString(message.intent, '', 80),
+    scheduledTaskId: cleanString(message.scheduledTaskId, '', 180),
     createdAt: cleanDate(message.createdAt, now)
   };
 }
@@ -224,6 +283,7 @@ function normalizeConversation(conversation = {}) {
     appIcon: cleanString(conversation.appIcon, '', 24),
     projectId: cleanString(conversation.projectId, '', 180),
     projectName: cleanString(conversation.projectName, '', 180),
+    scheduledTaskId: cleanString(conversation.scheduledTaskId, '', 180),
     createdAt,
     updatedAt: cleanDate(conversation.updatedAt, createdAt)
   };
@@ -247,6 +307,10 @@ function normalizeWorkspace(workspace = {}) {
     projects: Array.isArray(workspace.projects)
       ? workspace.projects.slice(0, MAX_PROJECTS).map(normalizeProject)
       : [],
+    scheduled: Array.isArray(workspace.scheduled)
+      ? workspace.scheduled.slice(0, MAX_SCHEDULED_TASKS).map(normalizeScheduledTask)
+      : [],
+    scheduledSettings: normalizeScheduledSettings(workspace.scheduledSettings),
     intelligence: normalizeIntelligence(workspace.intelligence)
   };
 }
@@ -309,6 +373,8 @@ async function createConversationRecord(username, seed = {}) {
     conversations: [conversation, ...existing],
     library: current.library || [],
     projects: current.projects || [],
+    scheduled: current.scheduled || [],
+    scheduledSettings: current.scheduledSettings || {},
     intelligence: current.intelligence || {}
   });
 

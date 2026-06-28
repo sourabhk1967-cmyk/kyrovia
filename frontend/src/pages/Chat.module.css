@@ -906,6 +906,696 @@
   background: #f4f4f4 !important;
 }
 
+.scheduledPane {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  background: #ffffff;
+  color: #111111;
+  padding: 34px clamp(24px, 8vw, 70px) 54px;
+}
+
+.scheduledHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 22px;
+  width: min(100%, 720px);
+  margin-inline: auto;
+}
+
+.scheduledHeader h1 {
+  margin: 0;
+  color: #000000;
+  font-size: 1.72rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.15;
+}
+
+.scheduledHeader p {
+  margin: 14px 0 0;
+  color: #4b5563;
+  font-size: 0.98rem;
+  line-height: 1.45;
+}
+
+.scheduledFilterButton {
+  display: inline-flex;
+  height: 36px;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #111111;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding: 0 13px;
+}
+
+.scheduledComposer {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto auto;
+  width: min(100%, 720px);
+  min-height: 52px;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #eeeeee;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.08);
+  margin: 30px auto 26px;
+  padding: 6px 7px 6px 16px;
+}
+
+.scheduledComposer button {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #111111;
+  cursor: pointer;
+}
+
+.scheduledComposer button:hover {
+  background: #f1f1f1;
+}
+
+.scheduledVoiceActive {
+  background: #111111 !important;
+  color: #ffffff !important;
+}
+
+.scheduledComposer input {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: #111111;
+  font: inherit;
+  outline: none;
+}
+
+.scheduledComposer input::placeholder {
+  color: #8a8f98;
+}
+
+.scheduledComposerStatus {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #35c759;
+}
+
+.scheduledSendButton {
+  width: 40px !important;
+  height: 40px !important;
+  background: #000000 !important;
+  color: #ffffff !important;
+}
+
+.scheduledWorkspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  width: min(100%, 720px);
+  gap: 28px;
+  margin-inline: auto;
+}
+
+.scheduledExamples {
+  display: grid;
+  gap: 0;
+}
+
+.scheduledExample {
+  display: grid;
+  grid-template-columns: 24px 22px minmax(150px, 0.28fr) minmax(0, 1fr);
+  min-height: 68px;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-bottom: 1px solid #eeeeee;
+  background: transparent;
+  color: #111111;
+  cursor: pointer;
+  font: inherit;
+  padding: 8px 6px;
+  text-align: left;
+}
+
+.scheduledExample:hover {
+  background: #fafafa;
+}
+
+.scheduledExample > span:first-child {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border: 1px solid #a3a3a3;
+  border-radius: 999px;
+  color: #737373;
+}
+
+.scheduledExample strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #111111;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scheduledExample small {
+  min-width: 0;
+  overflow: hidden;
+  color: #7b8190;
+  font-size: 0.98rem;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scheduledAdvanced {
+  display: grid;
+  gap: 18px;
+  border-top: 1px solid #eeeeee;
+  padding-top: 20px;
+}
+
+.scheduledAdvancedHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.scheduledAdvancedHeader h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.scheduledAdvancedActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.scheduledTabs {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: #ffffff;
+}
+
+.scheduledTabs button {
+  height: 34px;
+  border: 0;
+  background: transparent;
+  color: #52525b;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  padding: 0 13px;
+}
+
+.scheduledPermissionButton {
+  display: inline-flex;
+  height: 36px;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #27272a;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 750;
+  padding: 0 12px;
+}
+
+.scheduledPermissionButton:hover {
+  background: #f8fafc;
+}
+
+.scheduledTabActive {
+  background: #111111 !important;
+  color: #ffffff !important;
+}
+
+.scheduledConnectionGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.scheduledConnectionGrid button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: 58px;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid #eeeeee;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #111111;
+  cursor: pointer;
+  font: inherit;
+  padding: 8px;
+  text-align: left;
+}
+
+.scheduledConnectionGrid button:hover {
+  background: #f8fafc;
+}
+
+.scheduledConnectionActive {
+  border-color: #b8d9c5 !important;
+  background: #f2fbf5 !important;
+  color: #166534 !important;
+}
+
+.scheduledConnectionGrid strong,
+.scheduledConnectionGrid small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scheduledConnectionGrid strong {
+  font-size: 0.84rem;
+}
+
+.scheduledConnectionGrid small {
+  color: #71717a;
+  font-size: 0.74rem;
+}
+
+.scheduledTaskList {
+  display: grid;
+  gap: 10px;
+}
+
+.scheduledTaskCard {
+  display: grid;
+  gap: 14px;
+  border: 1px solid #eeeeee;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.scheduledTaskTop {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+}
+
+.scheduledTaskTop > span:first-child {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 999px;
+  background: #eef6ff;
+  color: #0f6b99;
+}
+
+.scheduledTaskTop h3 {
+  margin: 0;
+  font-size: 0.98rem;
+}
+
+.scheduledTaskTop p {
+  margin: 5px 0 0;
+  color: #6b7280;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.scheduledSwitch {
+  position: relative;
+  display: block;
+  width: 42px;
+  height: 24px;
+}
+
+.scheduledSwitch input {
+  position: absolute;
+  opacity: 0;
+}
+
+.scheduledSwitch span {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: #d4d4d8;
+  cursor: pointer;
+}
+
+.scheduledSwitch span::after {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+  content: "";
+  transition: transform 150ms ease;
+}
+
+.scheduledSwitch input:checked + span {
+  background: #111111;
+}
+
+.scheduledSwitch input:checked + span::after {
+  transform: translateX(18px);
+}
+
+.scheduledTaskControls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) auto auto;
+  align-items: end;
+  gap: 10px;
+}
+
+.scheduledTaskControls label {
+  display: grid;
+  gap: 6px;
+  color: #52525b;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.scheduledTaskControls select {
+  width: 100%;
+  height: 38px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #111111;
+  font: inherit;
+  outline: none;
+  padding: 0 10px;
+}
+
+.scheduledTaskControls > button {
+  display: inline-flex;
+  height: 38px;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 999px;
+  background: #111111;
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+  padding: 0 14px;
+}
+
+.scheduledTaskControls > .scheduledDeleteButton {
+  width: 38px;
+  justify-content: center;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #71717a;
+  padding: 0;
+}
+
+.scheduledTaskControls > .scheduledDeleteButton:hover {
+  border-color: #fecaca;
+  background: #fff7f7;
+  color: #b91c1c;
+}
+
+.scheduledPermissionError {
+  margin: -6px 0 0;
+  color: #b42318;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.scheduledPermissionModal {
+  position: fixed;
+  z-index: 110;
+  display: grid;
+  place-items: center;
+  inset: 0;
+  padding: 24px;
+}
+
+.scheduledPermissionBackdrop {
+  position: absolute;
+  border: 0;
+  background: rgba(17, 24, 39, 0.42);
+  cursor: default;
+  inset: 0;
+}
+
+.scheduledPermissionPanel {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: min(100%, 620px);
+  max-height: min(88vh, 760px);
+  overflow-y: auto;
+  gap: 20px;
+  border: 1px solid #e5e7eb;
+  border-radius: 20px;
+  background: #ffffff;
+  box-shadow: 0 28px 90px rgba(15, 23, 42, 0.24);
+  padding: 22px;
+}
+
+.scheduledPermissionPanel > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.scheduledPermissionPanel > header > div {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.scheduledPermissionPanel > header h2,
+.scheduledPermissionPanel > header p {
+  margin: 0;
+}
+
+.scheduledPermissionPanel > header h2 {
+  font-size: 1.16rem;
+}
+
+.scheduledPermissionPanel > header p {
+  margin-top: 5px;
+  color: #6b7280;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.scheduledPermissionPanel > header > button {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #52525b;
+  cursor: pointer;
+}
+
+.scheduledPermissionPanel > header > button:hover {
+  background: #f4f4f5;
+}
+
+.scheduledPermissionIcon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 12px;
+  background: #ecfdf3;
+  color: #15803d;
+}
+
+.scheduledApprovalList {
+  display: grid;
+  gap: 8px;
+}
+
+.scheduledApprovalList > button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 13px;
+  background: #ffffff;
+  color: #18181b;
+  cursor: pointer;
+  font: inherit;
+  padding: 13px 14px;
+  text-align: left;
+}
+
+.scheduledApprovalList strong,
+.scheduledApprovalList small {
+  display: block;
+}
+
+.scheduledApprovalList strong {
+  font-size: 0.92rem;
+}
+
+.scheduledApprovalList small {
+  margin-top: 4px;
+  color: #71717a;
+  font-size: 0.8rem;
+  line-height: 1.42;
+}
+
+.scheduledApprovalSelected {
+  border-color: #a7d7b8 !important;
+  background: #f3fbf6 !important;
+  color: #166534 !important;
+}
+
+.scheduledPermissionSection {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid #eeeeee;
+  padding-top: 18px;
+}
+
+.scheduledPermissionSection h3,
+.scheduledPermissionSection p {
+  margin: 0;
+}
+
+.scheduledPermissionSection h3 {
+  font-size: 0.96rem;
+}
+
+.scheduledPermissionSection p {
+  margin-top: 4px;
+  color: #71717a;
+  font-size: 0.8rem;
+}
+
+.scheduledDeviceGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.scheduledDeviceGrid > button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #27272a;
+  cursor: pointer;
+  font: inherit;
+  padding: 11px;
+  text-align: left;
+}
+
+.scheduledDeviceGrid > button:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
+.scheduledDeviceGrid strong,
+.scheduledDeviceGrid small {
+  display: block;
+}
+
+.scheduledDeviceGrid strong {
+  font-size: 0.84rem;
+}
+
+.scheduledDeviceGrid small {
+  margin-top: 3px;
+  color: #71717a;
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+
+.scheduledDeviceGranted {
+  border-color: #b8d9c5 !important;
+  background: #f2fbf5 !important;
+  color: #166534 !important;
+}
+
+.scheduledDeviceSummary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.scheduledDeviceSummary span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border-radius: 999px;
+  background: #f4f4f5;
+  color: #52525b;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 7px 10px;
+}
+
+.scheduledPermissionNotice {
+  margin: 0;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #52525b;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  padding: 11px 12px;
+}
+
+.scheduledEmpty {
+  display: grid;
+  min-height: 180px;
+  place-items: center;
+  align-content: center;
+  gap: 9px;
+  border: 1px dashed #d4d4d8;
+  border-radius: 8px;
+  color: #71717a;
+  text-align: center;
+}
+
+.scheduledEmpty strong {
+  color: #111111;
+}
+
 .libraryPane {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
@@ -1616,6 +2306,212 @@
 .appStartButton:hover,
 .appSettingsButton:hover {
   opacity: 0.86;
+}
+
+.githubConnectModal {
+  position: fixed;
+  z-index: 130;
+  display: grid;
+  place-items: center;
+  inset: 0;
+  padding: 24px;
+}
+
+.githubConnectBackdrop {
+  position: absolute;
+  border: 0;
+  background: rgba(15, 23, 42, 0.42);
+  cursor: default;
+  inset: 0;
+}
+
+.githubConnectPanel {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: min(100%, 410px);
+  max-height: min(92vh, 780px);
+  overflow-y: auto;
+  gap: 20px;
+  border: 1px solid #e5e7eb;
+  border-radius: 22px;
+  background: #ffffff;
+  box-shadow: 0 30px 90px rgba(15, 23, 42, 0.25);
+  padding: 26px 18px 18px;
+}
+
+.githubConnectClose {
+  position: absolute;
+  top: 13px;
+  right: 13px;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #18181b;
+  cursor: pointer;
+}
+
+.githubConnectClose:hover {
+  background: #f4f4f5;
+}
+
+.githubConnectBrand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.githubConnectBrandIcon {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  border-radius: 15px;
+  background: #ffffff;
+  color: #050505;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.06);
+}
+
+.githubConnectBrandIcon img {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+}
+
+.githubConnectDots {
+  display: flex;
+  gap: 4px;
+}
+
+.githubConnectDots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #e4e4e7;
+}
+
+.githubConnectHeader {
+  text-align: center;
+}
+
+.githubConnectHeader h2,
+.githubConnectHeader p {
+  margin: 0;
+}
+
+.githubConnectHeader h2 {
+  font-size: 1.24rem;
+  font-weight: 750;
+}
+
+.githubConnectHeader p {
+  margin-top: 6px;
+  color: #8a8a8a;
+  font-size: 0.86rem;
+}
+
+.githubConnectPolicies {
+  overflow: hidden;
+  border: 1px solid #e1e1e1;
+  border-radius: 16px;
+  padding: 7px 15px;
+}
+
+.githubConnectPolicies article {
+  border-bottom: 1px solid #e5e7eb;
+  padding: 12px 0;
+}
+
+.githubConnectPolicies article:last-child {
+  border-bottom: 0;
+}
+
+.githubConnectPolicies strong,
+.githubConnectPolicies p {
+  margin: 0;
+}
+
+.githubConnectPolicies strong {
+  font-size: 0.88rem;
+}
+
+.githubConnectPolicies p {
+  margin-top: 7px;
+  color: #686868;
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.githubConnectAuth {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 13px;
+  border: 1px solid #e1e1e1;
+  border-radius: 16px;
+  padding: 15px 16px;
+}
+
+.githubConnectAuth > span {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 999px;
+  color: #4285f4;
+  font-size: 1.1rem;
+  font-weight: 900;
+}
+
+.githubConnectAuth strong,
+.githubConnectAuth p {
+  margin: 0;
+}
+
+.githubConnectAuth strong {
+  font-size: 0.86rem;
+}
+
+.githubConnectAuth p {
+  margin-top: 4px;
+  color: #71717a;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.githubConnectNote {
+  margin: -6px 2px 0;
+  border-radius: 10px;
+  background: #fff8e8;
+  color: #7c5b16;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  padding: 9px 10px;
+}
+
+.githubConnectContinue {
+  width: 100%;
+  min-height: 46px;
+  border: 0;
+  border-radius: 999px;
+  background: #050505;
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.githubConnectContinue:hover {
+  background: #27272a;
 }
 
 .appDetailDescription {
@@ -6835,15 +7731,40 @@
     grid-template-columns: repeat(2, minmax(130px, 1fr));
   }
 
+  .scheduledPane,
   .libraryPane,
   .appsPane,
   .imageGeneratorPane {
     padding: 76px 18px 38px;
   }
 
+  .scheduledHeader,
   .libraryHeader,
   .appsHeader {
     grid-template-columns: 1fr;
+  }
+
+  .scheduledComposer {
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    border-radius: 22px;
+  }
+
+  .scheduledComposerStatus,
+  .scheduledComposer button:nth-of-type(2) {
+    display: none;
+  }
+
+  .scheduledExample {
+    grid-template-columns: 24px 22px minmax(0, 1fr);
+  }
+
+  .scheduledExample small {
+    grid-column: 3 / -1;
+    white-space: normal;
+  }
+
+  .scheduledConnectionGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .libraryHeaderActions,
@@ -7028,6 +7949,58 @@
     margin-top: 34px;
   }
 
+  .scheduledAdvancedHeader,
+  .scheduledTaskControls {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .scheduledAdvancedHeader {
+    flex-direction: column;
+  }
+
+  .scheduledAdvancedActions,
+  .scheduledTabs {
+    width: 100%;
+  }
+
+  .scheduledAdvancedActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .scheduledTabs button {
+    flex: 1;
+  }
+
+  .scheduledConnectionGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .scheduledTaskControls > button {
+    justify-content: center;
+  }
+
+  .scheduledTaskControls > .scheduledDeleteButton {
+    width: 100%;
+  }
+
+  .scheduledPermissionModal {
+    align-items: end;
+    padding: 0;
+  }
+
+  .scheduledPermissionPanel {
+    width: 100%;
+    max-height: 92vh;
+    border-radius: 20px 20px 0 0;
+    padding: 18px;
+  }
+
+  .scheduledDeviceGrid {
+    grid-template-columns: 1fr;
+  }
+
   .libraryTableHead {
     display: none;
   }
@@ -7080,6 +8053,18 @@
   .appInfoRow strong,
   .appInfoRow a {
     padding: 0 16px;
+  }
+
+  .githubConnectModal {
+    align-items: end;
+    padding: 0;
+  }
+
+  .githubConnectPanel {
+    width: 100%;
+    max-height: 94vh;
+    border-radius: 22px 22px 0 0;
+    padding: 24px 14px 16px;
   }
 }
 

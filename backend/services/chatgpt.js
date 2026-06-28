@@ -227,7 +227,7 @@ class ChatGPTService {
       const recovery = await this.recoverLockedProfile();
       if (recovery.stopped > 0) {
         console.warn(
-          `Stopped ${recovery.stopped} stale Chromium process(es) using ${this.userDataDir}. Retrying ChatGPT browser startup.`
+          `Stopped ${recovery.stopped} stale Chromium process(es) using ${this.userDataDir}. Retrying Kyrovia browser startup.`
         );
         await new Promise((resolve) => setTimeout(resolve, 800));
 
@@ -255,7 +255,7 @@ class ChatGPTService {
       : 'Close the existing browser process that is using the Kyrovia profile, then restart the backend.';
     const serviceError = createServiceError(
       503,
-      `The ChatGPT browser profile is locked: ${this.userDataDir}. ${detail}`
+      `The Kyrovia browser profile is locked: ${this.userDataDir}. ${detail}`
     );
     serviceError.cause = error;
     serviceError.recovery = recovery;
@@ -427,7 +427,7 @@ Get-CimInstance Win32_Process |
 
     return {
       id,
-      provider: 'chatgpt',
+      provider: 'kyrovia',
       label: labels[id],
       url: this.chatUrl
     };
@@ -444,7 +444,7 @@ Get-CimInstance Win32_Process |
 
     return this.requestQueue.enqueue(
       () =>
-        this.sendMessageNow(prompt, files, modelId, {
+        this.sendMessageWithRetry(prompt, files, modelId, {
           expectImage,
           freshChat,
           sessionKey,
@@ -458,6 +458,31 @@ Get-CimInstance Win32_Process |
         onStarted: options?.onStarted
       }
     );
+  }
+
+  async sendMessageWithRetry(prompt, files = [], modelId = DEFAULT_MODEL_ID, options = {}) {
+    const maxAttempts = 2;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        return await this.sendMessageNow(prompt, files, modelId, {
+          ...options,
+          freshChat: options.freshChat || attempt > 1
+        });
+      } catch (error) {
+        const transientComposerFailure =
+          error?.status === 409 && /not signed in|composer is available/i.test(String(error.message || ''));
+        const transientResponseTimeout = error?.status === 504;
+
+        if (attempt >= maxAttempts || (!transientComposerFailure && !transientResponseTimeout)) {
+          throw error;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+      }
+    }
+
+    throw createServiceError(500, 'Kyrovia generation retry ended unexpectedly.');
   }
 
   async startNewChat(options = {}) {
@@ -529,7 +554,18 @@ Get-CimInstance Win32_Process |
       await this.assertChatNotBlocked(page);
       await this.ensureReadyForPrompt(page);
 
-      const composer = await this.waitForComposer(page);
+      let composer = await this.waitForComposer(page);
+      if (!composer) {
+        await page
+          .reload({
+            waitUntil: 'domcontentloaded',
+            timeout: Math.min(this.timeoutMs, 60000)
+          })
+          .catch(() => undefined);
+        await this.assertChatNotBlocked(page);
+        composer = await this.waitForComposer(page, Math.min(this.timeoutMs, 60000));
+      }
+
       if (!composer) {
         throw createServiceError(
           409,
@@ -1001,7 +1037,7 @@ Get-CimInstance Win32_Process |
 
     throw createServiceError(
       409,
-      'Kyrovia could not enter the prompt into ChatGPT. Reload the Playwright browser window, make sure the ChatGPT composer is available, then retry.'
+      'Kyrovia could not enter the prompt in its browser workspace. Reload the Kyrovia browser window, make sure the composer is available, then retry.'
     );
   }
 
@@ -3492,7 +3528,7 @@ Get-CimInstance Win32_Process |
   buildConversationSourceRecord(conversationUrl) {
     return {
       id: 'source-conversation',
-      title: 'Backend ChatGPT conversation',
+      title: 'Backend Kyrovia conversation',
       url: conversationUrl,
       displayUrl: this.getSourceDisplayUrl(conversationUrl),
       hostname: this.getSourceHostname(conversationUrl),
@@ -3500,7 +3536,7 @@ Get-CimInstance Win32_Process |
       ariaLabel: '',
       titleAttribute: '',
       sourceText:
-        'No external source links were exposed by ChatGPT for this answer. This is the backend conversation link used to generate the response.',
+        'No external source links were exposed by Kyrovia for this answer. This is the backend conversation link used to generate the response.',
       sourceType: 'backend-conversation'
     };
   }

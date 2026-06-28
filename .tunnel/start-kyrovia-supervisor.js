@@ -8,7 +8,13 @@ const backendHealthUrl = process.env.KYROVIA_BACKEND_HEALTH_URL || 'http://127.0
 const checkIntervalMs = Number(process.env.KYROVIA_SUPERVISOR_CHECK_MS || 10000);
 const backendRestartMs = Number(process.env.KYROVIA_BACKEND_RESTART_MS || 4000);
 const tunnelRestartMs = Number(process.env.KYROVIA_TUNNEL_RESTART_MS || 10000);
+const publicHealthTimeoutMs = Number(process.env.KYROVIA_PUBLIC_HEALTH_TIMEOUT_MS || 8000);
+const publicFailureLimit = Number(process.env.KYROVIA_PUBLIC_FAILURE_LIMIT || 18);
+const enableFallback = /^(1|true|yes|on)$/i.test(
+  String(process.env.KYROVIA_ENABLE_FALLBACK || '')
+);
 const lockFile = path.join(__dirname, 'supervisor.pid');
+const stopRequestFile = path.join(__dirname, 'stop.request');
 const statusFile = path.join(__dirname, 'supervisor-status.json');
 const supervisorLog = path.join(__dirname, 'kyrovia-supervisor.log');
 const backendLog = path.join(backendDir, 'kyrovia-live.out.log');
@@ -25,15 +31,72 @@ let backendProcess = null;
 let tunnelProcess = null;
 let fallbackProcess = null;
 let backendFailures = 0;
+let publicFailures = 0;
+let publicHealthy = false;
+let publicStatus = 0;
 let stopping = false;
 let checkTimer = null;
 let backendRestartTimer = null;
 let tunnelRestartTimer = null;
+let checkingServices = false;
 
 function appendLog(message) {
   const line = `[${new Date().toISOString()}] ${message}`;
   fs.appendFileSync(supervisorLog, `${line}\n`, 'utf8');
   console.log(line);
+}
+
+function powershellPublicHealth(url) {
+  return new Promise((resolve) => {
+    const escapedUrl = String(url).replace(/'/g, "''");
+    const command = [
+      "$ProgressPreference = 'SilentlyContinue';",
+      "$headers = @{ 'User-Agent' = 'Mozilla/5.0 KyroviaLive/1.0'; 'Bypass-Tunnel-Reminder' = 'true'; 'Cache-Control' = 'no-cache'; Accept = 'application/json' };",
+      "try {",
+      `  $response = Invoke-WebRequest -UseBasicParsing -Uri '${escapedUrl}' -Headers $headers -TimeoutSec 8 -ErrorAction Stop;`,
+      "  @{ status = [int]$response.StatusCode; body = $response.Content } | ConvertTo-Json -Compress",
+      "} catch {",
+      "  $status = 0;",
+      "  if ($_.Exception.Response) { $status = [int]$_.Exception.Response.StatusCode }",
+      "  @{ status = $status; body = '' } | ConvertTo-Json -Compress",
+      "}"
+    ].join(' ');
+    const child = spawn(
+      'powershell.exe',
+      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', command],
+      {
+        windowsHide: true,
+        stdio: ['ignore', 'pipe', 'pipe']
+      }
+    );
+    let stdout = '';
+    const timer = setTimeout(() => {
+      child.kill();
+      resolve({ healthy: false, status: 0 });
+    }, publicHealthTimeoutMs + 5000);
+
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk.toString();
+    });
+    child.once('error', () => {
+      clearTimeout(timer);
+      resolve({ healthy: false, status: 0 });
+    });
+    child.once('exit', () => {
+      clearTimeout(timer);
+
+      try {
+        const result = JSON.parse(stdout.trim());
+        const payload = result.body ? JSON.parse(result.body) : null;
+        resolve({
+          healthy: result.status === 200 && payload?.ok === true && payload?.service === 'kyrovia',
+          status: result.status || 0
+        });
+      } catch (_error) {
+        resolve({ healthy: false, status: 0 });
+      }
+    });
+  });
 }
 
 function writeStatus(extra = {}) {
@@ -48,16 +111,22 @@ function writeStatus(extra = {}) {
     tunnelState = null;
   }
 
-  try {
-    fallbackPublicUrl = fs.readFileSync(path.join(__dirname, 'public-url.txt'), 'utf8').trim() || null;
-  } catch (_error) {
-    fallbackPublicUrl = null;
+  if (enableFallback) {
+    try {
+      fallbackPublicUrl = fs.readFileSync(path.join(__dirname, 'public-url.txt'), 'utf8').trim() || null;
+    } catch (_error) {
+      fallbackPublicUrl = null;
+    }
   }
 
   const activePublicUrl =
-    tunnelState?.state === 'online' && tunnelState?.publicUrl
-      ? tunnelState.publicUrl
-      : fallbackPublicUrl;
+    publicHealthy
+      ? brandedPublicUrl
+      : enableFallback
+        ? fallbackPublicUrl
+        : tunnelState?.state === 'online' && tunnelState?.publicUrl
+          ? tunnelState.publicUrl
+          : null;
 
   if (activePublicUrl) {
     fs.writeFileSync(activePublicUrlFile, `${activePublicUrl}\n`, 'utf8');
@@ -80,6 +149,10 @@ function writeStatus(extra = {}) {
         activePublicUrl,
         fallbackPublicUrl,
         backendFailures,
+        publicFailures,
+        publicHealthy,
+        publicStatus,
+        fallbackEnabled: enableFallback,
         stopping,
         checkedAt: new Date().toISOString(),
         ...extra
@@ -152,7 +225,7 @@ function scheduleTunnelRestart() {
 }
 
 function startFallback() {
-  if (stopping || fallbackProcess) {
+  if (!enableFallback || stopping || fallbackProcess) {
     return;
   }
 
@@ -172,7 +245,7 @@ function startFallback() {
     appendLog(`Public fallback exited: code=${code ?? ''} signal=${signal || ''}.`);
     fallbackProcess = null;
 
-    if (!stopping) {
+    if (enableFallback && !stopping) {
       setTimeout(startFallback, tunnelRestartMs);
     }
   });
@@ -220,6 +293,8 @@ function startTunnel() {
   tunnelProcess.once('exit', (code, signal) => {
     appendLog(`Tunnel exited: code=${code ?? ''} signal=${signal || ''}.`);
     tunnelProcess = null;
+    publicHealthy = false;
+    publicStatus = 0;
     writeStatus({ tunnelConnected: false });
     scheduleTunnelRestart();
   });
@@ -236,8 +311,55 @@ async function backendIsHealthy() {
   }
 }
 
-async function checkServices() {
+async function publicTunnelHealth() {
+  const healthUrl = `${brandedPublicUrl}/api/health?supervisor=${Date.now()}`;
+
+  try {
+    const response = await fetch(healthUrl, {
+      headers: {
+        'Bypass-Tunnel-Reminder': 'true',
+        'Cache-Control': 'no-cache'
+      },
+      redirect: 'manual',
+      signal: AbortSignal.timeout(publicHealthTimeoutMs)
+    });
+    const status = response.status;
+
+    if (!response.ok) {
+      if (process.platform === 'win32') {
+        return powershellPublicHealth(healthUrl);
+      }
+
+      return { healthy: false, status };
+    }
+
+    const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+    if (!contentType.includes('application/json')) {
+      return { healthy: false, status };
+    }
+
+    const payload = await response.json();
+    return {
+      healthy: payload?.ok === true && payload?.service === 'kyrovia',
+      status
+    };
+  } catch (_error) {
+    if (process.platform === 'win32') {
+      return powershellPublicHealth(healthUrl);
+    }
+
+    return { healthy: false, status: 0 };
+  }
+}
+
+async function checkServicesNow() {
   if (stopping) {
+    return;
+  }
+
+  if (fs.existsSync(stopRequestFile)) {
+    fs.rmSync(stopRequestFile, { force: true });
+    await shutdown('manual stop request');
     return;
   }
 
@@ -245,14 +367,39 @@ async function checkServices() {
 
   if (healthy) {
     backendFailures = 0;
-    if (!tunnelProcess) {
+    const publicCheck = await publicTunnelHealth();
+    publicHealthy = publicCheck.healthy;
+    publicStatus = publicCheck.status;
+
+    if (publicHealthy) {
+      publicFailures = 0;
+    } else if (tunnelProcess && tunnelStateIsOnline()) {
+      publicFailures += 1;
+      appendLog(
+        `Public tunnel health failed (${publicFailures}/${publicFailureLimit}, HTTP ${publicStatus || 'unreachable'}).`
+      );
+    }
+
+    if (!publicHealthy && !tunnelProcess) {
       startTunnel();
     }
-    if (!fallbackProcess) {
+
+    if (!publicHealthy && tunnelProcess && publicFailures >= publicFailureLimit) {
+      appendLog('Public tunnel is stale. Restarting the LocalTunnel connection.');
+      const unhealthyTunnel = tunnelProcess;
+      tunnelProcess = null;
+      publicFailures = 0;
+      unhealthyTunnel.kill();
+      scheduleTunnelRestart();
+    }
+
+    if (enableFallback && !fallbackProcess && !publicHealthy) {
       startFallback();
     }
   } else {
     backendFailures += 1;
+    publicHealthy = false;
+    publicStatus = 0;
 
     if (!backendProcess) {
       startBackend();
@@ -268,8 +415,24 @@ async function checkServices() {
 
   writeStatus({
     backendHealthy: healthy,
-    tunnelConnected: Boolean(tunnelProcess) && tunnelStateIsOnline()
+    tunnelConnected: publicHealthy
   });
+}
+
+async function checkServices() {
+  if (stopping || checkingServices) {
+    return;
+  }
+
+  checkingServices = true;
+
+  try {
+    await checkServicesNow();
+  } catch (error) {
+    appendLog(`Supervisor health check failed: ${error.message}`);
+  } finally {
+    checkingServices = false;
+  }
 }
 
 function tunnelStateIsOnline() {
@@ -327,14 +490,22 @@ async function shutdown(signal) {
   ]);
 
   fs.rmSync(lockFile, { force: true });
+  fs.rmSync(stopRequestFile, { force: true });
   writeStatus({ backendHealthy: false, tunnelConnected: false });
   process.exit(0);
 }
 
 async function start() {
   acquireLock();
+  fs.rmSync(stopRequestFile, { force: true });
   appendLog('Kyrovia supervisor starting.');
-  startBackend();
+
+  if (await backendIsHealthy()) {
+    appendLog('An existing Kyrovia backend is healthy; monitoring it without starting a duplicate.');
+  } else {
+    startBackend();
+  }
+
   await checkServices();
   checkTimer = setInterval(checkServices, checkIntervalMs);
 }

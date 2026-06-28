@@ -2,6 +2,7 @@ import {
   Archive,
   ArrowUp,
   Activity,
+  Bell,
   Blocks,
   BookOpen,
   Brush,
@@ -9,6 +10,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Clock,
   CircleDashed,
   Code2,
   Copy,
@@ -34,7 +36,9 @@ import {
   List,
   ListFilter,
   Lightbulb,
+  Laptop,
   LogOut,
+  MapPin,
   Maximize2,
   MessageCircle,
   Mic,
@@ -45,6 +49,8 @@ import {
   Pill,
   Palette,
   Settings,
+  ShieldCheck,
+  Smartphone,
   Stethoscope,
   Pin,
   Play,
@@ -60,6 +66,7 @@ import {
   Square,
   Sparkles,
   SquarePen,
+  Tag,
   ThumbsDown,
   ThumbsUp,
   Trash2,
@@ -179,6 +186,78 @@ const ideaCards = [
   { title: 'Improve Your Desk Setup', tone: 'desk' },
   { title: 'Wanderlust', tone: 'travel' },
   { title: 'Scribble', tone: 'scribble' }
+];
+
+const DEFAULT_SCHEDULED_PROMPT = 'Send me a daily briefing about the topics I care about most';
+const SCHEDULED_TASK_INTENT = 'scheduled-task';
+const scheduledCadenceOptions = ['Daily', 'Weekdays', 'Weekly', 'Event-based'];
+const scheduledDeliveryOptions = ['Kyrovia chat', 'Email', 'WhatsApp'];
+const scheduledConnectionOptions = [
+  { id: 'interests', label: 'Interests', detail: 'Ready', Icon: Sparkles },
+  { id: 'apps', label: 'Apps', detail: 'Connect', Icon: Blocks },
+  { id: 'web', label: 'Web watch', detail: 'On', Icon: Search },
+  { id: 'voice', label: 'Voice', detail: 'Optional', Icon: Mic }
+];
+const scheduledApprovalOptions = [
+  {
+    id: 'ask',
+    title: 'Ask for approval',
+    detail: 'Ask before using connected apps, editing external data, or sending anything.'
+  },
+  {
+    id: 'safe',
+    title: 'Approve safe actions',
+    detail: 'Allow low-risk reads and reminders; ask before messages, edits, purchases, or sharing.'
+  },
+  {
+    id: 'full',
+    title: 'Full access',
+    detail: 'Act through apps and device permissions you explicitly grant. System permission prompts still apply.'
+  }
+];
+const scheduledDevicePermissionOptions = [
+  { id: 'notifications', label: 'Notifications', detail: 'Deliver alerts on this device', Icon: Bell },
+  { id: 'microphone', label: 'Microphone', detail: 'Use voice when you request it', Icon: Mic },
+  { id: 'location', label: 'Location', detail: 'Power nearby reminders and ideas', Icon: MapPin },
+  { id: 'files', label: 'Files', detail: 'Choose files or folders each time', Icon: Folder }
+];
+const scheduledTaskExamples = [
+  {
+    id: 'daily-briefing',
+    icon: Clock,
+    title: 'Daily briefing',
+    prompt: DEFAULT_SCHEDULED_PROMPT
+  },
+  {
+    id: 'world-cup-recap',
+    icon: Gauge,
+    title: 'World Cup recap',
+    prompt: 'Send me a World Cup recap at the end of every match day'
+  },
+  {
+    id: 'weekend-long-read',
+    icon: BookOpen,
+    title: 'Weekend long read',
+    prompt: 'Every Saturday, find me an exceptional recent long read based on my interests'
+  },
+  {
+    id: 'sale-monitor',
+    icon: Tag,
+    title: 'Sale monitor',
+    prompt: "Watch my favorite stores and let me know when there's a good sale"
+  },
+  {
+    id: 'concert-alerts',
+    icon: Volume2,
+    title: 'Concert alerts',
+    prompt: 'Let me know when artists I like announce concerts near me'
+  },
+  {
+    id: 'weekend-ideas',
+    icon: Lightbulb,
+    title: 'Weekend ideas',
+    prompt: 'Every Thursday, send me ideas for things to do nearby this weekend'
+  }
 ];
 
 const modelOptions = [
@@ -819,6 +898,70 @@ function createProject(seed = {}) {
   };
 }
 
+function normalizeScheduledTasks(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((task) => task && typeof task === 'object')
+    .map((task) => ({
+      id: task.id || createId('scheduled'),
+      title: task.title || scheduledTaskTitle(task.prompt || DEFAULT_SCHEDULED_PROMPT),
+      prompt: task.prompt || DEFAULT_SCHEDULED_PROMPT,
+      cadence: task.cadence || 'Daily',
+      delivery: task.delivery || 'Kyrovia chat',
+      active: task.active !== false,
+      status: task.status || 'setup',
+      connectedApps: Array.isArray(task.connectedApps) ? task.connectedApps : [],
+      approvalMode: ['ask', 'safe', 'full'].includes(task.approvalMode) ? task.approvalMode : 'ask',
+      accessScopes: Array.isArray(task.accessScopes) ? task.accessScopes : [],
+      createdAt: task.createdAt || new Date().toISOString(),
+      updatedAt: task.updatedAt || task.createdAt || new Date().toISOString()
+    }));
+}
+
+function normalizeScheduledSettings(value = {}) {
+  const deviceScopes = value.deviceScopes && typeof value.deviceScopes === 'object'
+    ? value.deviceScopes
+    : {};
+
+  return {
+    approvalMode: ['ask', 'safe', 'full'].includes(value.approvalMode) ? value.approvalMode : 'ask',
+    connectedApps: Array.isArray(value.connectedApps)
+      ? [...new Set(value.connectedApps.filter((appId) => typeof appId === 'string' && appId))]
+      : ['interests', 'web'],
+    deviceScopes: {
+      notifications: deviceScopes.notifications === true,
+      microphone: deviceScopes.microphone === true,
+      location: deviceScopes.location === true,
+      files: deviceScopes.files === true
+    },
+    updatedAt: value.updatedAt || ''
+  };
+}
+
+function createScheduledTask(seed = {}) {
+  const now = new Date().toISOString();
+  const prompt = seed.prompt || DEFAULT_SCHEDULED_PROMPT;
+
+  return {
+    id: createId('scheduled'),
+    title: scheduledTaskTitle(prompt),
+    prompt,
+    cadence: 'Daily',
+    delivery: 'Kyrovia chat',
+    active: true,
+    status: 'setup',
+    connectedApps: [],
+    approvalMode: 'ask',
+    accessScopes: [],
+    createdAt: now,
+    updatedAt: now,
+    ...seed
+  };
+}
+
 function storageKey(username, prefix = STORAGE_PREFIX) {
   return `${prefix}:${username || 'default'}`;
 }
@@ -869,6 +1012,8 @@ function loadWorkspace(username) {
           conversations: parsed.conversations,
           library: Array.isArray(parsed.library) ? parsed.library : [],
           projects: Array.isArray(parsed.projects) ? parsed.projects : [],
+          scheduled: normalizeScheduledTasks(parsed.scheduled),
+          scheduledSettings: normalizeScheduledSettings(parsed.scheduledSettings),
           intelligence: normalizeIntelligence(parsed.intelligence)
         };
       }
@@ -883,6 +1028,8 @@ function loadWorkspace(username) {
     conversations: [firstConversation],
     library: [],
     projects: [],
+    scheduled: [],
+    scheduledSettings: normalizeScheduledSettings(),
     intelligence: normalizeIntelligence()
   };
 }
@@ -895,6 +1042,34 @@ function saveWorkspace(username, workspace) {
 function titleFromMessage(content) {
   const title = content.replace(/\s+/g, ' ').trim();
   return title.length > 34 ? `${title.slice(0, 34)}...` : title || EMPTY_TITLE;
+}
+
+function scheduledTaskTitle(prompt = '') {
+  const example = scheduledTaskExamples.find((item) => item.prompt === prompt);
+
+  if (example) {
+    return example.title;
+  }
+
+  return titleFromMessage(prompt).replace(/\.+$/, '') || 'Scheduled task';
+}
+
+function inferScheduledCadence(prompt = '') {
+  const text = String(prompt).toLowerCase();
+
+  if (/\bweekday|workday|monday|tuesday|wednesday|thursday|friday\b/.test(text)) {
+    return 'Weekdays';
+  }
+
+  if (/\bevery\s+saturday|every\s+sunday|weekly|weekend|every\s+thursday\b/.test(text)) {
+    return 'Weekly';
+  }
+
+  if (/\bwhen|monitor|watch|alert|announce|sale|concert|match day\b/.test(text)) {
+    return 'Event-based';
+  }
+
+  return 'Daily';
 }
 
 function appendDictation(baseText, transcript) {
@@ -3153,6 +3328,430 @@ function LibraryFileIcon({ item }) {
   );
 }
 
+function ScheduledView({
+  draft,
+  filter,
+  settings,
+  tasks,
+  onCreateTask,
+  onContinueTask,
+  onDeleteTask,
+  onDraftChange,
+  onFilterChange,
+  onOpenApps,
+  onRequestPermission,
+  onUpdateSettings,
+  onUpdateTask
+}) {
+  const [permissionsOpen, setPermissionsOpen] = useState(false);
+  const [permissionError, setPermissionError] = useState('');
+  const [requestingScope, setRequestingScope] = useState('');
+  const [voiceListening, setVoiceListening] = useState(false);
+  const scheduledVoiceRef = useRef(null);
+  const cleanDraft = draft.trim();
+  const visibleTasks = tasks.filter((task) => {
+    if (filter === 'paused') {
+      return task.active === false;
+    }
+
+    return task.active !== false;
+  });
+
+  function handleSubmit(event) {
+    event.preventDefault();
+    onCreateTask(cleanDraft || DEFAULT_SCHEDULED_PROMPT);
+  }
+
+  function updateConnectedApp(appId, connected) {
+    const currentConnections = settings.connectedApps || [];
+    const nextConnections = connected
+      ? [...new Set([...currentConnections, appId])]
+      : currentConnections.filter((id) => id !== appId);
+
+    onUpdateSettings({ connectedApps: nextConnections });
+  }
+
+  async function handleConnectionClick(appId) {
+    setPermissionError('');
+
+    if (appId === 'apps') {
+      onOpenApps();
+      return;
+    }
+
+    const connected = settings.connectedApps.includes(appId);
+
+    if (appId === 'voice' && !connected) {
+      try {
+        setRequestingScope('microphone');
+        await onRequestPermission('microphone');
+      } catch (error) {
+        setPermissionError(error.message || 'Microphone permission was not granted.');
+        return;
+      } finally {
+        setRequestingScope('');
+      }
+    }
+
+    updateConnectedApp(appId, !connected);
+  }
+
+  async function handlePermissionRequest(scopeId) {
+    setPermissionError('');
+    setRequestingScope(scopeId);
+
+    try {
+      await onRequestPermission(scopeId);
+    } catch (error) {
+      setPermissionError(error.message || `${scopeId} permission was not granted.`);
+    } finally {
+      setRequestingScope('');
+    }
+  }
+
+  function handleVoiceInput() {
+    if (voiceListening) {
+      scheduledVoiceRef.current?.stop?.();
+      return;
+    }
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      setPermissionError('Voice input is available in Chrome or Edge.');
+      setPermissionsOpen(true);
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = navigator.language || 'en-US';
+    scheduledVoiceRef.current = recognition;
+    recognition.onstart = () => {
+      setPermissionError('');
+      setVoiceListening(true);
+    };
+    recognition.onresult = (event) => {
+      const transcript = event.results?.[0]?.[0]?.transcript || '';
+      onDraftChange(appendDictation(draft, transcript));
+    };
+    recognition.onerror = (event) => {
+      setPermissionError(
+        event.error === 'not-allowed'
+          ? 'Microphone permission is blocked. Open Access & permissions to grant it.'
+          : `Voice input stopped: ${event.error || 'microphone error'}.`
+      );
+    };
+    recognition.onend = () => {
+      scheduledVoiceRef.current = null;
+      setVoiceListening(false);
+    };
+
+    try {
+      recognition.start();
+    } catch (error) {
+      setVoiceListening(false);
+      setPermissionError(error.message || 'Could not start voice input.');
+    }
+  }
+
+  return (
+    <section className={styles.scheduledPane}>
+      <header className={styles.scheduledHeader}>
+        <div>
+          <h1>Scheduled</h1>
+          <p>Ask KYROVIA to schedule tasks, set reminders, or monitor for updates.</p>
+        </div>
+        <button
+          className={styles.scheduledFilterButton}
+          onClick={() => onFilterChange(filter === 'active' ? 'paused' : 'active')}
+          type="button"
+        >
+          <ListFilter size={17} />
+          <span>{filter === 'paused' ? 'Paused' : 'Active'}</span>
+        </button>
+      </header>
+
+      <form className={styles.scheduledComposer} onSubmit={handleSubmit}>
+        <button
+          onClick={() => onCreateTask(cleanDraft || DEFAULT_SCHEDULED_PROMPT)}
+          title="Add scheduled task"
+          type="button"
+        >
+          <Plus size={22} />
+        </button>
+        <input
+          aria-label="Schedule a task"
+          onChange={(event) => onDraftChange(event.target.value)}
+          placeholder="Schedule a task"
+          value={draft}
+        />
+        <span className={styles.scheduledComposerStatus} title="Connected to Kyrovia backend" />
+        <button title="Tune with Kyrovia" type="submit">
+          <WandSparkles size={19} />
+        </button>
+        <button
+          aria-pressed={voiceListening}
+          className={voiceListening ? styles.scheduledVoiceActive : undefined}
+          onClick={handleVoiceInput}
+          title="Use voice"
+          type="button"
+        >
+          <Mic size={19} />
+        </button>
+        <button className={styles.scheduledSendButton} title="Create schedule" type="submit">
+          <Activity size={20} />
+        </button>
+      </form>
+
+      <div className={styles.scheduledWorkspace}>
+        <section className={styles.scheduledExamples} aria-label="Suggested scheduled tasks">
+          {scheduledTaskExamples.slice(1).map(({ id, icon: Icon, title, prompt }) => (
+            <button
+              className={styles.scheduledExample}
+              key={id}
+              onClick={() => onCreateTask(prompt, { title })}
+              type="button"
+            >
+              <span>
+                <Plus size={16} />
+              </span>
+              <Icon size={18} />
+              <strong>{title}</strong>
+              <small>{prompt}</small>
+            </button>
+          ))}
+        </section>
+
+        <section className={styles.scheduledAdvanced} aria-label="Scheduled task controls">
+          <div className={styles.scheduledAdvancedHeader}>
+            <h2>Your automations</h2>
+            <div className={styles.scheduledAdvancedActions}>
+              <div className={styles.scheduledTabs} role="tablist" aria-label="Schedule filters">
+                <button
+                  aria-selected={filter === 'active'}
+                  className={filter === 'active' ? styles.scheduledTabActive : undefined}
+                  onClick={() => onFilterChange('active')}
+                  role="tab"
+                  type="button"
+                >
+                  Active
+                </button>
+                <button
+                  aria-selected={filter === 'paused'}
+                  className={filter === 'paused' ? styles.scheduledTabActive : undefined}
+                  onClick={() => onFilterChange('paused')}
+                  role="tab"
+                  type="button"
+                >
+                  Paused
+                </button>
+              </div>
+              <button
+                className={styles.scheduledPermissionButton}
+                onClick={() => setPermissionsOpen(true)}
+                type="button"
+              >
+                <ShieldCheck size={16} />
+                <span>{scheduledApprovalOptions.find((option) => option.id === settings.approvalMode)?.title}</span>
+              </button>
+            </div>
+          </div>
+
+          <div className={styles.scheduledConnectionGrid}>
+            {scheduledConnectionOptions.map(({ id, label, detail, Icon }) => (
+              <button
+                aria-pressed={settings.connectedApps.includes(id)}
+                className={settings.connectedApps.includes(id) ? styles.scheduledConnectionActive : undefined}
+                key={id}
+                onClick={() => handleConnectionClick(id)}
+                type="button"
+              >
+                <Icon size={17} />
+                <span>
+                  <strong>{label}</strong>
+                  <small>
+                    {id === 'apps'
+                      ? detail
+                      : requestingScope === 'microphone' && id === 'voice'
+                        ? 'Requesting...'
+                        : settings.connectedApps.includes(id)
+                          ? 'Connected'
+                          : 'Connect'}
+                  </small>
+                </span>
+                {id !== 'apps' && settings.connectedApps.includes(id) ? <Check size={15} /> : null}
+              </button>
+            ))}
+          </div>
+
+          {permissionError ? <p className={styles.scheduledPermissionError}>{permissionError}</p> : null}
+
+          {visibleTasks.length ? (
+            <div className={styles.scheduledTaskList}>
+              {visibleTasks.map((task) => (
+                <article className={styles.scheduledTaskCard} key={task.id}>
+                  <div className={styles.scheduledTaskTop}>
+                    <span>
+                      <Clock size={18} />
+                    </span>
+                    <div>
+                      <h3>{task.title}</h3>
+                      <p>{task.prompt}</p>
+                    </div>
+                    <label className={styles.scheduledSwitch}>
+                      <input
+                        checked={task.active !== false}
+                        onChange={(event) =>
+                          onUpdateTask(task.id, {
+                            active: event.target.checked,
+                            status: event.target.checked ? 'setup' : 'paused'
+                          })
+                        }
+                        type="checkbox"
+                      />
+                      <span />
+                    </label>
+                  </div>
+                  <div className={styles.scheduledTaskControls}>
+                    <label>
+                      <span>Cadence</span>
+                      <select
+                        onChange={(event) => onUpdateTask(task.id, { cadence: event.target.value })}
+                        value={task.cadence}
+                      >
+                        {scheduledCadenceOptions.map((option) => (
+                          <option key={option}>{option}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>Delivery</span>
+                      <select
+                        onChange={(event) => onUpdateTask(task.id, { delivery: event.target.value })}
+                        value={task.delivery}
+                      >
+                        {scheduledDeliveryOptions.map((option) => (
+                          <option key={option}>{option}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <button
+                      onClick={() => onContinueTask(task)}
+                      type="button"
+                    >
+                      <MessageCircle size={16} />
+                      <span>Continue setup</span>
+                    </button>
+                    <button
+                      className={styles.scheduledDeleteButton}
+                      onClick={() => onDeleteTask(task.id)}
+                      title="Delete scheduled task"
+                      type="button"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className={styles.scheduledEmpty}>
+              <Clock size={26} />
+              <strong>No {filter === 'paused' ? 'paused' : 'active'} scheduled tasks</strong>
+              <span>Use the add button to create the daily briefing setup chat.</span>
+            </div>
+          )}
+        </section>
+      </div>
+
+      {permissionsOpen ? (
+        <div className={styles.scheduledPermissionModal} role="presentation">
+          <button
+            aria-label="Close permissions"
+            className={styles.scheduledPermissionBackdrop}
+            onClick={() => setPermissionsOpen(false)}
+            type="button"
+          />
+          <section aria-labelledby="scheduled-access-title" className={styles.scheduledPermissionPanel} role="dialog">
+            <header>
+              <div>
+                <span className={styles.scheduledPermissionIcon}>
+                  <ShieldCheck size={20} />
+                </span>
+                <div>
+                  <h2 id="scheduled-access-title">Access & permissions</h2>
+                  <p>Choose how Kyrovia asks before using connected services.</p>
+                </div>
+              </div>
+              <button aria-label="Close" onClick={() => setPermissionsOpen(false)} type="button">
+                <X size={20} />
+              </button>
+            </header>
+
+            <div className={styles.scheduledApprovalList}>
+              {scheduledApprovalOptions.map((option) => (
+                <button
+                  aria-pressed={settings.approvalMode === option.id}
+                  className={settings.approvalMode === option.id ? styles.scheduledApprovalSelected : undefined}
+                  key={option.id}
+                  onClick={() => onUpdateSettings({ approvalMode: option.id })}
+                  type="button"
+                >
+                  <span>
+                    <strong>{option.title}</strong>
+                    <small>{option.detail}</small>
+                  </span>
+                  {settings.approvalMode === option.id ? <Check size={18} /> : null}
+                </button>
+              ))}
+            </div>
+
+            <div className={styles.scheduledPermissionSection}>
+              <div>
+                <h3>Device permissions</h3>
+                <p>Browser and operating-system prompts are always respected.</p>
+              </div>
+              <div className={styles.scheduledDeviceGrid}>
+                {scheduledDevicePermissionOptions.map(({ id, label, detail, Icon }) => {
+                  const granted = settings.deviceScopes[id] === true;
+                  return (
+                    <button
+                      aria-pressed={granted}
+                      className={granted ? styles.scheduledDeviceGranted : undefined}
+                      disabled={requestingScope === id}
+                      key={id}
+                      onClick={() => handlePermissionRequest(id)}
+                      type="button"
+                    >
+                      <Icon size={18} />
+                      <span>
+                        <strong>{label}</strong>
+                        <small>{requestingScope === id ? 'Requesting...' : granted ? 'Allowed' : detail}</small>
+                      </span>
+                      {granted ? <Check size={16} /> : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className={styles.scheduledDeviceSummary}>
+              <span><Laptop size={18} /> This laptop</span>
+              <span><Smartphone size={18} /> Phone apps connect individually</span>
+            </div>
+            {permissionError ? <p className={styles.scheduledPermissionError}>{permissionError}</p> : null}
+            <p className={styles.scheduledPermissionNotice}>
+              Full access never bypasses phone, laptop, browser, or app permissions. Kyrovia can only use a service after you connect it and grant the permissions it exposes.
+            </p>
+          </section>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function LibraryView({
   fileInputRef,
   items,
@@ -4047,6 +4646,100 @@ function WhatsAppConnectorPanel({
   );
 }
 
+function GithubConnectDialog({ app, onClose }) {
+  const detail = app?.detail || {};
+  const connectUrl = detail.connectUrl || 'https://github.com/login';
+
+  function handleContinue() {
+    const connectionWindow = window.open(connectUrl, '_blank', 'noopener,noreferrer');
+
+    if (!connectionWindow) {
+      window.location.assign(connectUrl);
+      return;
+    }
+
+    onClose();
+  }
+
+  return (
+    <div className={styles.githubConnectModal} role="presentation">
+      <button
+        aria-label="Close GitHub connection"
+        className={styles.githubConnectBackdrop}
+        onClick={onClose}
+        type="button"
+      />
+      <section
+        aria-labelledby="github-connect-title"
+        aria-modal="true"
+        className={styles.githubConnectPanel}
+        role="dialog"
+      >
+        <button
+          aria-label="Close GitHub connection"
+          className={styles.githubConnectClose}
+          onClick={onClose}
+          type="button"
+        >
+          <X size={20} />
+        </button>
+
+        <div className={styles.githubConnectBrand}>
+          <span className={styles.githubConnectBrandIcon}>
+            <img alt="Kyrovia" src={kyroviaLogo} />
+          </span>
+          <span className={styles.githubConnectDots} aria-hidden="true">
+            <i />
+            <i />
+            <i />
+          </span>
+          <span className={styles.githubConnectBrandIcon}>
+            <Github size={30} />
+          </span>
+        </div>
+
+        <header className={styles.githubConnectHeader}>
+          <h2 id="github-connect-title">Connect GitHub</h2>
+          <p>Developed by Kyrovia</p>
+        </header>
+
+        <div className={styles.githubConnectPolicies}>
+          <article>
+            <strong>Permissions always respected</strong>
+            <p>Kyrovia is strictly limited to permissions you explicitly grant. Disable access anytime to revoke permissions.</p>
+          </article>
+          <article>
+            <strong>You're in control</strong>
+            <p>Kyrovia respects your privacy preferences. Repository data is used only to provide relevant and useful results.</p>
+          </article>
+          <article>
+            <strong>Connectors may introduce risk</strong>
+            <p>Kyrovia protects your privacy, but connected sites may attempt to expose or misuse repository data. Review permissions carefully.</p>
+          </article>
+        </div>
+
+        <div className={styles.githubConnectAuth}>
+          <span aria-hidden="true">G</span>
+          <div>
+            <strong>You use Google to authenticate</strong>
+            <p>For added security, enable multi-factor authentication on your Google account and your Kyrovia account.</p>
+          </div>
+        </div>
+
+        {!detail.oauthConfigured ? (
+          <p className={styles.githubConnectNote}>
+            GitHub OAuth is not configured yet. This will open GitHub sign-in; add a GitHub OAuth client to complete automatic account linking.
+          </p>
+        ) : null}
+
+        <button className={styles.githubConnectContinue} onClick={handleContinue} type="button">
+          Continue to GitHub
+        </button>
+      </section>
+    </div>
+  );
+}
+
 function AppDetailView({
   app,
   healthError,
@@ -4073,8 +4766,10 @@ function AppDetailView({
   whatsappLoading,
   whatsappStatus
 }) {
+  const [githubConnectOpen, setGithubConnectOpen] = useState(false);
   const detail = app?.detail || {};
   const isHealthConnect = app?.id === 'health-connect';
+  const isGithub = app?.id === 'github';
   const isWhatsAppBridge = app?.id === 'whatsapp-bridge';
   const rows = [
     ['Category', detail.category || app?.categoryLabel || 'Kyrovia Apps'],
@@ -4103,8 +4798,12 @@ function AppDetailView({
           <div className={styles.appDetailHead}>
             <h1>{app.name}</h1>
             <div className={styles.appDetailActions}>
-              <button className={styles.appStartButton} onClick={() => onStartChat(app)} type="button">
-                Start chat
+              <button
+                className={styles.appStartButton}
+                onClick={() => (isGithub ? setGithubConnectOpen(true) : onStartChat(app))}
+                type="button"
+              >
+                {isGithub ? 'Connect' : 'Start chat'}
               </button>
               <button className={styles.appSettingsButton} title="App settings" type="button">
                 <Settings size={20} />
@@ -4161,6 +4860,9 @@ function AppDetailView({
               onSend={onWhatsAppSend}
               status={whatsappStatus}
             />
+          ) : null}
+          {githubConnectOpen ? (
+            <GithubConnectDialog app={app} onClose={() => setGithubConnectOpen(false)} />
           ) : null}
         </div>
       ) : (
@@ -4360,6 +5062,7 @@ function ImageGeneratorView({ modelId, onDownloadImage, onEditImage, onLogout, o
               setGeneratorStatus(nextStatus);
             }
           },
+          onMessage: commitResult,
           onComplete: commitResult
         }
       );
@@ -4893,7 +5596,7 @@ function TemporaryChatView({
               </article>
               );
             })}
-            {sending ? (
+            {sending && generationStatus ? (
               <article className={styles.assistantMessage}>
                 <div className={styles.messageMeta}>Kyrovia</div>
                 <div className={styles.messageContent}>
@@ -6161,6 +6864,8 @@ function Chat({ session, onLogout }) {
   const [appsTab, setAppsTab] = useState('featured');
   const [appsSearch, setAppsSearch] = useState('');
   const [appsLoading, setAppsLoading] = useState(false);
+  const [scheduledDraft, setScheduledDraft] = useState('');
+  const [scheduledFilter, setScheduledFilter] = useState('active');
   const [appDetail, setAppDetail] = useState(null);
   const [appDetailLoading, setAppDetailLoading] = useState(false);
   const [healthError, setHealthError] = useState('');
@@ -6283,6 +6988,11 @@ function Chat({ session, onLogout }) {
 
     return [...byId.values()];
   }, [conversations, workspace.library]);
+  const scheduledTasks = useMemo(() => normalizeScheduledTasks(workspace.scheduled), [workspace.scheduled]);
+  const scheduledSettings = useMemo(
+    () => normalizeScheduledSettings(workspace.scheduledSettings),
+    [workspace.scheduledSettings]
+  );
   const historyMenuConversation = historyMenu
     ? conversations.find((conversation) => conversation.id === historyMenu.chatId)
     : null;
@@ -6507,6 +7217,8 @@ function Chat({ session, onLogout }) {
             ...response.workspace,
             library: Array.isArray(response.workspace.library) ? response.workspace.library : [],
             projects: Array.isArray(response.workspace.projects) ? response.workspace.projects : [],
+            scheduled: normalizeScheduledTasks(response.workspace.scheduled),
+            scheduledSettings: normalizeScheduledSettings(response.workspace.scheduledSettings),
             intelligence: normalizeIntelligence(response.workspace.intelligence)
           });
         } else {
@@ -6658,6 +7370,204 @@ function Chat({ session, onLogout }) {
 
       setSavingError(`Backend history sync failed: ${workspaceError.message}`);
     }
+  }
+
+  async function handleCreateScheduledTask(prompt = DEFAULT_SCHEDULED_PROMPT, seed = {}) {
+    if (sending) {
+      setError('Wait for the current response to finish before creating another scheduled task.');
+      return;
+    }
+
+    const cleanPrompt = String(prompt || '').trim() || DEFAULT_SCHEDULED_PROMPT;
+    const nextTask = createScheduledTask({
+      title: seed.title || scheduledTaskTitle(cleanPrompt),
+      prompt: cleanPrompt,
+      cadence: seed.cadence || inferScheduledCadence(cleanPrompt),
+      delivery: seed.delivery || 'Kyrovia chat',
+      connectedApps: seed.connectedApps || scheduledSettings.connectedApps,
+      approvalMode: seed.approvalMode || scheduledSettings.approvalMode,
+      accessScopes:
+        seed.accessScopes ||
+        Object.entries(scheduledSettings.deviceScopes)
+          .filter(([, granted]) => granted)
+          .map(([scopeId]) => scopeId)
+    });
+    const nextConversation = createConversation({
+      title: nextTask.title,
+      scheduledTaskId: nextTask.id
+    });
+    const userMessage = createMessage('user', cleanPrompt, {
+      intent: SCHEDULED_TASK_INTENT,
+      scheduledTaskId: nextTask.id
+    });
+    const conversationWithMessage = {
+      ...nextConversation,
+      messages: [userMessage]
+    };
+    let nextWorkspace = null;
+
+    recognitionRef.current?.stop?.();
+    stopReadingMessage();
+    flushSync(() => {
+      setActiveView('chat');
+      setWorkspace((current) => {
+        nextWorkspace = {
+          ...current,
+          activeId: nextConversation.id,
+          conversations: [conversationWithMessage, ...current.conversations],
+          library: current.library || [],
+          projects: current.projects || [],
+          scheduled: [
+            nextTask,
+            ...normalizeScheduledTasks(current.scheduled).filter((task) => task.id !== nextTask.id)
+          ]
+        };
+
+        return nextWorkspace;
+      });
+      setDraft('');
+      setScheduledDraft('');
+      setAttachments([]);
+      setInputMode('search');
+      setHistoryMenu(null);
+      setAccountMenuOpen(false);
+      setModelMenuOpen(false);
+      setError('');
+    });
+    closeCompactSidebar();
+
+    try {
+      await createBackendConversation(conversationWithMessage, session.token);
+      setSavingError('');
+    } catch (workspaceError) {
+      if (workspaceError.status === 401) {
+        onLogout();
+        return;
+      }
+
+      setSavingError(`Backend history sync failed: ${workspaceError.message}`);
+    }
+
+    const req = {
+      type: 'normal',
+      content: cleanPrompt,
+      attachments: [],
+      chatId: nextConversation.id,
+      modelId: selectedModelId,
+      appId: '',
+      intent: SCHEDULED_TASK_INTENT
+    };
+    lastRequestRef.current = req;
+
+    await executeSendMessage(req);
+  }
+
+  function handleUpdateScheduledTask(taskId, patch) {
+    setWorkspace((current) => ({
+      ...current,
+      scheduled: normalizeScheduledTasks(current.scheduled).map((task) =>
+        task.id === taskId
+          ? {
+              ...task,
+              ...patch,
+              updatedAt: new Date().toISOString()
+            }
+          : task
+      )
+    }));
+  }
+
+  function handleUpdateScheduledSettings(patch) {
+    setWorkspace((current) => {
+      const currentSettings = normalizeScheduledSettings(current.scheduledSettings);
+      return {
+        ...current,
+        scheduledSettings: normalizeScheduledSettings({
+          ...currentSettings,
+          ...patch,
+          deviceScopes: {
+            ...currentSettings.deviceScopes,
+            ...(patch.deviceScopes || {})
+          },
+          updatedAt: new Date().toISOString()
+        })
+      };
+    });
+  }
+
+  async function handleRequestScheduledPermission(scopeId) {
+    if (scopeId === 'notifications') {
+      if (!('Notification' in window)) {
+        throw new Error('Notifications are not supported in this browser.');
+      }
+
+      const permission = await window.Notification.requestPermission();
+      if (permission !== 'granted') {
+        throw new Error('Notification permission was not granted.');
+      }
+    } else if (scopeId === 'microphone') {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error('Microphone permission is not supported in this browser.');
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((track) => track.stop());
+    } else if (scopeId === 'location') {
+      if (!navigator.geolocation) {
+        throw new Error('Location permission is not supported in this browser.');
+      }
+
+      await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          () => resolve(),
+          (permissionError) => reject(new Error(permissionError.message || 'Location permission was not granted.')),
+          { enableHighAccuracy: false, maximumAge: 300000, timeout: 15000 }
+        );
+      });
+    } else if (scopeId !== 'files') {
+      throw new Error('Unknown permission request.');
+    }
+
+    handleUpdateScheduledSettings({
+      deviceScopes: {
+        [scopeId]: true
+      }
+    });
+  }
+
+  function handleContinueScheduledTask(task) {
+    const setupConversation = conversations.find(
+      (conversation) => conversation.scheduledTaskId === task.id
+    );
+
+    if (setupConversation) {
+      handleSelectChat(setupConversation.id);
+      return;
+    }
+
+    handleCreateScheduledTask(task.prompt, {
+      ...task,
+      connectedApps: task.connectedApps,
+      accessScopes: task.accessScopes
+    });
+  }
+
+  function handleDeleteScheduledTask(taskId) {
+    if (!window.confirm('Delete this scheduled task? Its setup chat will remain in Recents.')) {
+      return;
+    }
+
+    setWorkspace((current) => ({
+      ...current,
+      scheduled: normalizeScheduledTasks(current.scheduled).filter((task) => task.id !== taskId)
+    }));
+  }
+
+  function handleOpenScheduledApps() {
+    setActiveView('apps');
+    setHistoryMenu(null);
+    setAccountMenuOpen(false);
+    closeCompactSidebar();
   }
 
   async function handleOpenAppDetail(app) {
@@ -7789,6 +8699,7 @@ function Chat({ session, onLogout }) {
       messageFormat: response.messageFormat || '',
       appId: response.app?.id || '',
       appName: response.app?.name || '',
+      intent: response.intent || '',
       computerSearch: computerSearchFromResponse(response)
     });
   }
@@ -8009,6 +8920,7 @@ function Chat({ session, onLogout }) {
                 },
                 onMessage(response) {
                   commitResponse(response, false);
+                  setTemporaryGenerationStatus('');
                 },
                 onComplete: commitResponse
               }
@@ -8031,8 +8943,10 @@ function Chat({ session, onLogout }) {
                 },
                 onMessage(response) {
                   commitResponse(response, false);
+                  setGenerationStatus('');
                 },
-                onComplete: commitResponse
+                onComplete: commitResponse,
+                intent: req.intent || ''
               }
             );
       commitResponse(response);
@@ -8276,6 +9190,7 @@ function Chat({ session, onLogout }) {
           },
           onMessage(response) {
             commitResponse(response, false);
+            setTemporaryGenerationStatus('');
           },
           onComplete: commitResponse
         }
@@ -8371,6 +9286,20 @@ function Chat({ session, onLogout }) {
             >
               <Folder size={20} />
               <span>Projects</span>
+            </button>
+            <button
+              className={activeView === 'scheduled' ? styles.navItemActive : undefined}
+              onClick={() => {
+                setActiveView('scheduled');
+                setHistoryMenu(null);
+                setAccountMenuOpen(false);
+                setModelMenuOpen(false);
+                closeCompactSidebar();
+              }}
+              type="button"
+            >
+              <Clock size={20} />
+              <span>Scheduled</span>
             </button>
             <button
               className={activeView === 'apps' || activeView === 'appDetail' ? styles.navItemActive : undefined}
@@ -8637,7 +9566,23 @@ function Chat({ session, onLogout }) {
         </button>
       ) : null}
 
-      {activeView === 'library' ? (
+      {activeView === 'scheduled' ? (
+        <ScheduledView
+          draft={scheduledDraft}
+          filter={scheduledFilter}
+          onCreateTask={handleCreateScheduledTask}
+          onContinueTask={handleContinueScheduledTask}
+          onDeleteTask={handleDeleteScheduledTask}
+          onDraftChange={setScheduledDraft}
+          onFilterChange={setScheduledFilter}
+          onOpenApps={handleOpenScheduledApps}
+          onRequestPermission={handleRequestScheduledPermission}
+          onUpdateSettings={handleUpdateScheduledSettings}
+          onUpdateTask={handleUpdateScheduledTask}
+          settings={scheduledSettings}
+          tasks={scheduledTasks}
+        />
+      ) : activeView === 'library' ? (
         <LibraryView
           fileInputRef={libraryFileInputRef}
           items={libraryItems}
@@ -8782,13 +9727,11 @@ function Chat({ session, onLogout }) {
                   speechSynthesisSupported={speechSynthesisSupported}
                 />
               ))}
-              {sending ? (
+              {sending && generationStatus ? (
                 <article className={styles.assistantMessage}>
                   <div className={styles.messageMeta}>Kyrovia</div>
                   <div className={styles.messageContent}>
-                    <GenerationProgress
-                      label={inputMode === 'computer' ? 'Searching Kyrovia' : generationStatus}
-                    />
+                    <GenerationProgress label={generationStatus} />
                   </div>
                 </article>
               ) : null}

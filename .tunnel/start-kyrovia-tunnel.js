@@ -1,8 +1,11 @@
 const fs = require('fs');
 const net = require('net');
 const path = require('path');
+const { spawn } = require('child_process');
 const { lookup } = require('dns').promises;
-const localtunnel = require('localtunnel');
+
+const axios = require('axios');
+const Tunnel = require('localtunnel/lib/Tunnel');
 const { GoogleAuth } = require('../backend/node_modules/google-auth-library');
 
 const port = Number(process.env.KYROVIA_TUNNEL_PORT || 5050);
@@ -12,17 +15,69 @@ const urlFile = path.join(__dirname, 'requested-public-url.txt');
 const providerFile = path.join(__dirname, 'requested-provider.txt');
 const serviceAccountPath = path.resolve(__dirname, '../backend/serviceAccountKey.json');
 const reconnectMs = Number(process.env.KYROVIA_TUNNEL_RECONNECT_MS || 10000);
-const acquisitionTimeoutMs = Number(process.env.KYROVIA_TUNNEL_ACQUIRE_TIMEOUT_MS || 60000);
+const acquisitionTimeoutMs = Number(process.env.KYROVIA_TUNNEL_ACQUIRE_TIMEOUT_MS || 0);
 const connectivityIntervalMs = Number(process.env.KYROVIA_CONNECTIVITY_CHECK_MS || 15000);
 const statusFile = path.join(__dirname, 'kyrovia-tunnel-status.json');
 const providerHost = process.env.KYROVIA_TUNNEL_PROVIDER_HOST || 'localtunnel.me';
 const providerPort = Number(process.env.KYROVIA_TUNNEL_PROVIDER_PORT || 443);
+const providerBaseUrl =
+  process.env.KYROVIA_TUNNEL_PROVIDER_URL || `https://${providerHost}`;
 
 let stopping = false;
 let activeTunnel = null;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function powershellJsonGet(url) {
+  return new Promise((resolve, reject) => {
+    const escapedUrl = String(url).replace(/'/g, "''");
+    const command = [
+      "$ProgressPreference = 'SilentlyContinue';",
+      "$headers = @{ 'User-Agent' = 'Mozilla/5.0 KyroviaLive/1.0'; Accept = 'application/json' };",
+      `(Invoke-WebRequest -UseBasicParsing -Uri '${escapedUrl}' -Headers $headers -TimeoutSec 20 -ErrorAction Stop).Content`
+    ].join(' ');
+    const child = spawn(
+      'powershell.exe',
+      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', command],
+      {
+        windowsHide: true,
+        stdio: ['ignore', 'pipe', 'pipe']
+      }
+    );
+    let stdout = '';
+    let stderr = '';
+    const timer = setTimeout(() => {
+      child.kill();
+      reject(new Error('PowerShell allocation timed out.'));
+    }, 25000);
+
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
+    child.once('error', (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.once('exit', (code) => {
+      clearTimeout(timer);
+
+      if (code !== 0) {
+        reject(new Error(stderr.trim() || `PowerShell allocation failed with code ${code}.`));
+        return;
+      }
+
+      try {
+        resolve(JSON.parse(stdout.trim()));
+      } catch (error) {
+        reject(new Error(`PowerShell allocation returned invalid JSON: ${error.message}`));
+      }
+    });
+  });
 }
 
 function writeStatus(state, detail = '', publicUrl = '') {
@@ -119,21 +174,87 @@ async function authorizeFirebaseDomain(publicUrl) {
   return hostname;
 }
 
+async function allocateNamedTunnel() {
+  const requestedHostname = `${requestedSubdomain}.loca.lt`.toLowerCase();
+  const requestUrl = `${providerBaseUrl.replace(/\/+$/, '')}/${requestedSubdomain}`;
+
+  while (!stopping) {
+    try {
+      let body = null;
+      const response = await axios.get(requestUrl, {
+        responseType: 'json',
+        timeout: 20000,
+        validateStatus: () => true,
+        headers: {
+          Accept: 'application/json, text/plain, */*',
+          'Cache-Control': 'no-cache',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) KyroviaLive/1.0'
+        }
+      });
+
+      if (response.status === 200) {
+        body = response.data || {};
+      } else if (response.status === 403 && process.platform === 'win32') {
+        body = await powershellJsonGet(requestUrl);
+      } else {
+        throw new Error(`LocalTunnel provider returned HTTP ${response.status}.`);
+      }
+
+      const publicUrl = body.url || '';
+      const assignedHostname = publicUrl ? new URL(publicUrl).hostname.toLowerCase() : '';
+
+      if (assignedHostname !== requestedHostname) {
+        throw new Error(
+          `Requested hostname "${requestedHostname}" is unavailable; ` +
+            `LocalTunnel offered "${assignedHostname || 'no hostname'}".`
+        );
+      }
+
+      return body;
+    } catch (error) {
+      const detail = `Waiting for ${requestedHostname}: ${error.message}`;
+      console.error(detail);
+      writeStatus('waiting', detail);
+      await sleep(reconnectMs);
+    }
+  }
+
+  throw new Error('Tunnel startup stopped before allocation completed.');
+}
+
 async function openTunnel() {
   writeStatus('connecting', `Requesting ${requestedSubdomain}.loca.lt.`);
-  const acquisitionTimer = setTimeout(() => {
-    const message = `Tunnel acquisition timed out after ${acquisitionTimeoutMs}ms.`;
-    console.error(message);
-    writeStatus('error', message);
-    process.exit(1);
-  }, acquisitionTimeoutMs);
+  let acquisitionTimer = null;
 
-  const tunnel = await localtunnel({
-    port,
-    local_host: localHost,
-    subdomain: requestedSubdomain
-  });
-  clearTimeout(acquisitionTimer);
+  if (acquisitionTimeoutMs > 0) {
+    acquisitionTimer = setTimeout(() => {
+      const message = `Tunnel acquisition timed out after ${acquisitionTimeoutMs}ms.`;
+      console.error(message);
+      writeStatus('error', message);
+      process.exit(1);
+    }, acquisitionTimeoutMs);
+  }
+  let tunnel;
+
+  try {
+    const body = await allocateNamedTunnel();
+    tunnel = new Tunnel({
+      host: providerBaseUrl,
+      port,
+      local_host: localHost
+    });
+    const info = tunnel._getInfo(body);
+    tunnel.clientId = info.name;
+    tunnel.url = info.url;
+    tunnel._establish(info);
+  } finally {
+    // A failed acquisition must not leave a delayed process.exit() behind.
+    // That stale timer was terminating healthy replacement tunnels one minute later.
+    if (acquisitionTimer) {
+      clearTimeout(acquisitionTimer);
+    }
+  }
+
   const requestedHostname = `${requestedSubdomain}.loca.lt`.toLowerCase();
   const assignedHostname = new URL(tunnel.url).hostname.toLowerCase();
 
@@ -168,7 +289,6 @@ async function runTunnel() {
   return new Promise((resolve) => {
     let closed = false;
     let checking = false;
-    let providerWasOffline = false;
     const connectivityTimer = setInterval(async () => {
       if (closed || stopping || checking) {
         return;
@@ -180,27 +300,19 @@ async function runTunnel() {
         const providerOnline = await providerIsReachable();
 
         if (!providerOnline) {
-          providerWasOffline = true;
           writeStatus(
-            'offline',
-            `Connection to ${providerHost}:${providerPort} was lost. The backend remains online.`,
+            'degraded',
+            `The provider connectivity probe failed. Keeping the active tunnel open while public health is checked.`,
             tunnel.url
           );
           return;
         }
 
-        if (providerWasOffline) {
-          console.log('Internet connection restored. Recreating the public tunnel connection.');
-          tunnel.close();
-          return;
-        }
-
         writeStatus('online', 'Tunnel connected.', tunnel.url);
       } catch (error) {
-        providerWasOffline = true;
         writeStatus(
-          'offline',
-          `Provider connectivity check failed: ${error.message}`,
+          'degraded',
+          `Provider connectivity probe failed: ${error.message}. Keeping the active tunnel open.`,
           tunnel.url
         );
       } finally {

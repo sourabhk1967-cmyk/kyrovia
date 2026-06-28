@@ -20,7 +20,7 @@ function getChatService(req) {
   const service = req.app.locals.chatgpt;
 
   if (!service) {
-    throw createHttpError(503, 'Kyrovia ChatGPT browser service is not available');
+    throw createHttpError(503, 'Kyrovia browser service is not available');
   }
 
   return service;
@@ -38,7 +38,7 @@ function kyroviaOnly(text = '') {
 
 router.get('/', (_req, res) => {
   res.json({
-    sourceUrl: 'https://chatgpt.com/apps',
+    source: 'Kyrovia Apps',
     brand: 'Kyrovia',
     categories: getAppsCatalog()
   });

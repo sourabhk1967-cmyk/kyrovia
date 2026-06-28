@@ -11,7 +11,7 @@ const DEFAULTS = {
   chatUrl: 'https://chatgpt.com/',
   playwrightHeadless: false,
   playwrightTimeoutMs: 300000,
-  chatMaxConcurrentTabs: 100,
+  chatMaxConcurrentTabs: 10,
   chatParallelTabs: true,
   playwrightRecoverProfileLock: true,
   chatQueueMaxPending: 200,

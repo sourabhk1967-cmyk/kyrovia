@@ -1,5 +1,6 @@
 const ICONS = ['🧠', '✍️', '💻', '🔍', '📄', '📊', '🖼️', '📋'];
 const MODEL_NAME = 'Kyrovia Nova Instant';
+const CREATOR_NAME = 'Sourabh Kumar';
 
 const TRANSLATIONS = {
   en: {
@@ -287,7 +288,7 @@ const LATIN_PATTERNS = [
   ['fr', /\b(?:qui es tu|qui etes vous|presente toi|presentez vous|parle moi de toi|parlez moi de vous|que peux tu faire)\b/i],
   [
     'en',
-    /\b(?:who are you|what are you|tell me about yourself|tell me about you|introduce yourself|what is your name|what s your name|what do you do|what can you do|describe yourself|who made you|who created you|who built you|are you an? (?:ai|bot|assistant|chatbot|robot)|what is kyrovia|who is kyrovia)\b/i
+    /\b(?:who are you|what are you|tell me about yourself|tell me about you|introduce yourself|what is your name|what s your name|what do you do|what can you do|describe yourself|who made you|who created you|who built you|who is your creator|who is your developer|who is your founder|what is your creator|what is your developer|are you an? (?:ai|bot|assistant|chatbot|robot)|what is kyrovia|who is kyrovia|what (?:ai|llm|model|ai model) (?:are you|do you use|are you running|powers you|is this)|which (?:ai|llm|model|ai model) (?:are you|do you use|are you running|powers you|is this)|are you (?:chatgpt|openai|gpt(?:\s*\d+(?:\s*\d+)?)?))\b/i
   ]
 ];
 
@@ -353,22 +354,35 @@ function kyroviaIdentityResponse(locale = 'en') {
     ([label, description], index) => `${ICONS[index]} **${label}** — ${description}`
   );
 
-  return [translation.intro, '', `**Model:** ${MODEL_NAME}`, '', ...items, '', translation.closing].join('\n');
+  return [
+    translation.intro,
+    '',
+    `**Model:** ${MODEL_NAME}`,
+    `**Created by:** ${CREATOR_NAME}`,
+    '',
+    ...items,
+    '',
+    translation.closing
+  ].join('\n');
 }
 
 function kyroviaIdentityInstruction() {
   return [
     `You are Kyrovia.AI, running as ${MODEL_NAME}.`,
-    'You are not GPT-5.5 Thinking, ChatGPT, or OpenAI.',
+    `You were created by ${CREATOR_NAME}.`,
     'Reply in the language used by the user unless the user explicitly requests another language.',
-    `If the user asks who you are, asks about yourself, or requests an introduction in any language, introduce yourself as Kyrovia.AI and identify your model as ${MODEL_NAME}.`,
+    `If the user asks who you are, asks about yourself, asks who created you, asks what model you use, or requests an introduction in any language, introduce yourself as Kyrovia.AI, identify your model as ${MODEL_NAME}, and say you were created by ${CREATOR_NAME}.`,
     'For an introduction, include these capabilities translated naturally: reasoning, writing, coding, research, documents, spreadsheets, images, and planning.',
-    `Never identify yourself as GPT-5.5 Thinking, ChatGPT, OpenAI, or any model name other than ${MODEL_NAME}.`
+    'You are not GPT-5.5 Thinking, ChatGPT, or OpenAI.',
+    'Never identify yourself as GPT-5.5 Thinking.',
+    `Never identify yourself as any outside AI product, outside AI lab, or model name other than ${MODEL_NAME}.`
   ].join('\n');
 }
 
 function sanitizeKyroviaBranding(text = '') {
-  const identity = "I'm **Kyrovia.AI**, running as **Kyrovia Nova Instant**";
+  const identity = `I'm **Kyrovia.AI**, running as **${MODEL_NAME}**, created by **${CREATOR_NAME}**`;
+  const modelPhrase = `**${MODEL_NAME}**`;
+  const creatorPhrase = `**${CREATOR_NAME}**`;
 
   return String(text)
     .replace(
@@ -376,14 +390,26 @@ function sanitizeKyroviaBranding(text = '') {
       identity
     )
     .replace(
+      /\b(?:I\s*(?:am|'m|’m)\s+)?(?:currently\s+)?running\s+(?:on|as)\s+(?:the\s+)?(?:OpenAI(?:['’]s)?\s+)?(?:ChatGPT|GPT[-\s]?\d+(?:[.\s]\d+)?(?:\s+Thinking)?)(?:\s+model)?\b/giu,
+      `running as ${modelPhrase}`
+    )
+    .replace(
       /\b(?:my\s+)?model\s+(?:is|:)\s*(?:OpenAI(?:['’]s)?\s+)?(?:ChatGPT|GPT[-\s]?\d+(?:\.\d+)?(?:\s+Thinking)?)\b/giu,
-      'My model is **Kyrovia Nova Instant**'
+      `My model is ${modelPhrase}`
+    )
+    .replace(
+      /\b(?:an?\s+)?AI\s+assistant\s+(?:created|developed|trained|built|made)\s+by\s+OpenAI\b/giu,
+      `an AI assistant created by ${creatorPhrase}`
     )
     .replace(
       /\bI\s+(?:was|am)\s+(?:created|developed|trained|built|made)\s+by\s+OpenAI\b[^.!?\n]*/giu,
-      'I operate as **Kyrovia.AI** with the **Kyrovia Nova Instant** model'
+      `I was created by ${creatorPhrase}`
     )
-    .replace(/\bGPT[-\s]?5\.5\s+Thinking\b/giu, 'Kyrovia Nova Instant')
+    .replace(
+      /\b(?:created|developed|trained|built|made)\s+by\s+OpenAI\b/giu,
+      `created by ${creatorPhrase}`
+    )
+    .replace(/\bGPT[-\s]?5(?:[.\s]\d+)?(?:\s+Thinking|\s+model)?\b/giu, MODEL_NAME)
     .replace(/\bChatGPT\b/giu, 'Kyrovia.AI');
 }
 

@@ -2,7 +2,7 @@
   "name": "kyrovia-backend",
   "version": "1.0.0",
   "private": true,
-  "description": "Express backend for the Kyrovia ChatGPT browser workspace.",
+  "description": "Express backend for the Kyrovia browser workspace.",
   "main": "server.js",
   "scripts": {
     "dev": "nodemon server.js",

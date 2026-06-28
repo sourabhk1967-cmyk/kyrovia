@@ -10,6 +10,9 @@ const {
 
 const identityCases = [
   ['Who are you?', 'en'],
+  ['Which model are you running on?', 'en'],
+  ['Are you GPT 5 5?', 'en'],
+  ['Who is your creator?', 'en'],
   ['Introduce yourself in Hindi', 'hi'],
   ['apne bare mein kuch batao', 'hi-Latn'],
   ['aap kon ho', 'hi-Latn'],
@@ -44,6 +47,7 @@ test('returns the canonical English response', () => {
 
   assert.match(response, /I'm \*\*Kyrovia\.AI\*\*/);
   assert.match(response, /\*\*Model:\*\* Kyrovia Nova Instant/);
+  assert.match(response, /\*\*Created by:\*\* Sourabh Kumar/);
   assert.match(response, /🧠 \*\*Reasoning\*\*/);
   assert.match(response, /📋 \*\*Planning\*\*/);
   assert.match(response, /How can I help you today\?/);

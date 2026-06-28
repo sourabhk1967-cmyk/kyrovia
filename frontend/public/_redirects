@@ -1,0 +1,3 @@
+# Netlify API fallback and SPA routes.
+/api/*  /.netlify/functions/backend-unavailable  200!
+/*      /index.html                              200

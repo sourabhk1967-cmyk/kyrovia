@@ -7,7 +7,11 @@
     "dev:backend": "npm --prefix backend run dev",
     "dev:frontend": "npm --prefix frontend run dev",
     "build": "npm --prefix frontend run build",
+    "build:netlify": "npm --prefix frontend install && npm --prefix frontend run build",
+    "generate:secret": "node -e \"console.log(require('crypto').randomBytes(48).toString('base64url'))\"",
     "start": "npm --prefix backend start",
-    "start:supervised": "node .tunnel/start-kyrovia-supervisor.js"
+    "run:supervisor": "node .tunnel/start-kyrovia-supervisor.js",
+    "start:supervised": "powershell -NoProfile -ExecutionPolicy Bypass -File .tunnel/start-kyrovia-supervisor.ps1",
+    "stop:supervised": "powershell -NoProfile -ExecutionPolicy Bypass -File .tunnel/stop-kyrovia-supervisor.ps1"
   }
 }

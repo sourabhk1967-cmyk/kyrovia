@@ -49,8 +49,9 @@ Computer mode uses the configured Google Programmable Search Engine. The current
 - Google login authenticates visitors to Kyrovia.
 - Username/password login is not supported.
 - The backend ChatGPT login is a separate, shared browser session.
-- Simultaneous prompts enter a bounded FIFO queue because one shared ChatGPT browser profile can safely generate only one response at a time.
-- Kyrovia keeps separate conversation URLs for each Kyrovia account/session, then switches the shared ChatGPT browser to the right conversation before processing each queued prompt.
+- Kyrovia can process up to 10 different account/session conversations in parallel, with one temporary browser tab per active request.
+- Requests from the same account/session conversation stay ordered so simultaneous clicks cannot mix replies into the wrong chat.
+- Kyrovia keeps a separate conversation URL for each Kyrovia account, login session, and conversation.
 - ChatGPT cookies remain in `backend/playwright-profile`.
 - Do not commit or share that profile. It contains sensitive session data.
 - If ChatGPT signs out or requests verification, complete it again in the backend Chromium window.
@@ -126,6 +127,57 @@ npm start
 
 Express serves the built frontend at `http://localhost:5050`.
 
+For the durable public service, use:
+
+```powershell
+npm run start:supervised
+```
+
+This starts the backend and `https://kyrovia.loca.lt` in a hidden supervisor that restarts either service after a failure. It also verifies the public URL itself, so LocalTunnel 511/502 responses trigger a tunnel reconnect.
+
+The service keeps running after the launch terminal closes. Stop it manually with:
+
+```powershell
+npm run stop:supervised
+```
+
+## Netlify public frontend
+
+Netlify can publish the React app publicly. The Playwright-powered Express backend should still run on a persistent machine because it needs a saved browser profile, long requests, file storage, and an interactive ChatGPT login.
+
+1. Push this repository to GitHub and create a Netlify site from it.
+2. Use the included `netlify.toml`:
+
+   ```text
+   Build command: npm run build:netlify
+   Publish directory: frontend/dist
+   Functions directory: netlify/functions
+   ```
+
+3. Add these Netlify environment variables:
+
+   ```text
+   VITE_API_URL=https://your-persistent-backend.example.com/api
+   VITE_AI_TIMEOUT_MS=3900000
+   VITE_GENERATION_STREAM_IDLE_TIMEOUT_MS=25000
+   ```
+
+4. On the persistent backend host, set:
+
+   ```text
+   PUBLIC_APP_URL=https://your-netlify-site.netlify.app
+   CORS_ORIGIN=https://your-netlify-site.netlify.app
+   JWT_SECRET=<long-random-secret>
+   FIREBASE_SERVICE_ACCOUNT_JSON=<firebase-admin-json>
+   PLAYWRIGHT_USER_DATA_DIR=./playwright-profile
+   ```
+
+   Generate `JWT_SECRET` with `npm run generate:secret`.
+
+5. Add the Netlify hostname to Firebase Authentication authorized domains.
+
+The frontend calls `GET /api/deployment` before login and shows whether the public app shell is live, whether Express/Playwright is connected, and that no OpenAI API key is required. If `VITE_API_URL` is not set, Netlify returns a JSON fallback explaining that the persistent backend URL is missing instead of serving an HTML page to API calls.
+
 ## Cloudflare CDN assets
 
 Set `VITE_CLOUDFLARE_CDN_URL` before building to make the production frontend load compiled JS, CSS, images, and fonts from a Cloudflare-backed CDN/custom domain.
@@ -147,7 +199,7 @@ This browser mode needs a persistent machine, persistent disk, and usually a des
 - `PLAYWRIGHT_HEADLESS=true` only after the saved session is confirmed;
 - the public hostname added to Firebase Authorized Domains.
 
-Serverless platforms and hosts without an interactive browser are not suitable for the first ChatGPT login. A shared ChatGPT browser processes requests sequentially by default. `CHAT_QUEUE_MAX_PENDING` controls the waiting-room size, `CHAT_QUEUE_WAIT_TIMEOUT_MS` controls how long a queued request may wait, and `VITE_AI_TIMEOUT_MS` keeps the frontend connected to long-running queued requests. `PLAYWRIGHT_RECOVER_PROFILE_LOCK=true` lets Kyrovia close stale Chromium processes that are using the exact app-owned `PLAYWRIGHT_USER_DATA_DIR` after an unclean restart. True parallel generation requires independent browser workers with separate ChatGPT sessions or a supported API; `CHAT_PARALLEL_TABS=true` is only for setups that can safely tolerate multiple active ChatGPT tabs.
+Serverless platforms and hosts without an interactive browser are not suitable for the first ChatGPT login. `CHAT_MAX_CONCURRENT_TABS=10` caps parallel browser work, `CHAT_QUEUE_MAX_PENDING` controls the waiting-room size, `CHAT_QUEUE_WAIT_TIMEOUT_MS` controls how long a queued request may wait, and `VITE_AI_TIMEOUT_MS` keeps the frontend connected to long-running queued requests. `PLAYWRIGHT_RECOVER_PROFILE_LOCK=true` lets Kyrovia close stale Chromium processes that are using the exact app-owned `PLAYWRIGHT_USER_DATA_DIR` after an unclean restart. Parallel tabs share the signed-in browser profile but retain separate Kyrovia account/session/conversation mappings.
 
 ## Useful endpoints
 

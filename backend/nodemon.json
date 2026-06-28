@@ -1,4 +1,11 @@
 {
+  "watch": [
+    "server.js",
+    "config.js",
+    "routes",
+    "services",
+    "middleware"
+  ],
   "ignore": [
     "data/**",
     "logs/**",
@@ -8,6 +15,5 @@
     "*.out.log",
     "*.err.log"
   ],
-  "ext": "js,json",
-  "watch": [".", "routes", "services", "middleware"]
+  "ext": "js"
 }

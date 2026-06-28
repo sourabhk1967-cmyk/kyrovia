@@ -61,3 +61,54 @@ test('returns the completed generation payload without waiting for the stream to
     assert.equal(cancelCalled, true);
   });
 });
+
+test('delivers an image-ready message before the completed generation event', async () => {
+  await withBrowserTimers(async () => {
+    const encoder = new TextEncoder();
+    const imagePayload = {
+      message: '',
+      imageIntent: true,
+      images: [
+        {
+          src: 'data:image/png;base64,aW1hZ2U=',
+          sourceUrl: '/api/chat/images/generated.png'
+        }
+      ]
+    };
+    const received = [];
+    const body = new ReadableStream({
+      start(controller) {
+        controller.enqueue(
+          encoder.encode(
+            `${JSON.stringify({
+              event: 'message',
+              partial: false,
+              data: imagePayload
+            })}\n`
+          )
+        );
+        controller.enqueue(
+          encoder.encode(
+            `${JSON.stringify({
+              event: 'completed',
+              data: imagePayload
+            })}\n`
+          )
+        );
+      }
+    });
+    const response = {
+      body,
+      headers: new Headers({
+        'content-type': 'application/x-ndjson; charset=utf-8'
+      })
+    };
+
+    const payload = await readGenerationEventStream(response, (event) => {
+      received.push(event.event);
+    });
+
+    assert.deepEqual(received, ['message', 'completed']);
+    assert.deepEqual(payload, imagePayload);
+  });
+});

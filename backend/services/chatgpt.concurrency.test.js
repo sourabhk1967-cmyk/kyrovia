@@ -5,7 +5,7 @@ const ChatGPTService = require('./chatgpt');
 
 test('parallel request pages use independent tabs and close after use', async () => {
   const service = new ChatGPTService({
-    maxConcurrentTabs: 100,
+    maxConcurrentTabs: 10,
     parallelTabs: true
   });
   const closedPages = [];
@@ -37,17 +37,17 @@ test('parallel request pages use independent tabs and close after use', async ()
   };
 
   const pages = await Promise.all(
-    Array.from({ length: 100 }, () => service.createRequestPage())
+    Array.from({ length: 10 }, () => service.createRequestPage())
   );
 
-  assert.equal(new Set(pages.map((page) => page.id)).size, 100);
-  assert.equal(service.getQueueStatus().activeTabs, 100);
+  assert.equal(new Set(pages.map((page) => page.id)).size, 10);
+  assert.equal(service.getQueueStatus().activeTabs, 10);
 
   await Promise.all(pages.map((page) => service.closeRequestPage(page)));
   assert.equal(service.getQueueStatus().activeTabs, 0);
   assert.deepEqual(
     closedPages.sort((left, right) => left - right),
-    Array.from({ length: 100 }, (_, index) => index + 1)
+    Array.from({ length: 10 }, (_, index) => index + 1)
   );
 });
 
@@ -71,11 +71,11 @@ test('parallel tab mode keeps session-specific queue keys when explicitly enable
   assert.equal(service.getQueueStatus().mode, 'parallel-tabs');
 });
 
-test('one hundred messages from the same conversation use request sessions concurrently', async () => {
+test('ten independent user sessions run concurrently', async () => {
   const service = new ChatGPTService({
-    maxConcurrentTabs: 100,
+    maxConcurrentTabs: 10,
     parallelTabs: true,
-    queueMaxPending: 200,
+    queueMaxPending: 25,
     queueWaitTimeoutMs: 5000
   });
   let release;
@@ -90,21 +90,20 @@ test('one hundred messages from the same conversation use request sessions concu
     return options.sessionKey;
   };
 
-  const requests = Array.from({ length: 100 }, (_, index) =>
+  const requests = Array.from({ length: 10 }, (_, index) =>
     service.sendMessage(`message-${index}`, [], 'nova-instant', {
-      sessionKey: 'shared-conversation',
-      requestSessionKey: `generation-${index}`
+      sessionKey: `account-${index}:session-${index}:conversation-${index}`
     })
   );
 
   await new Promise((resolve) => setImmediate(resolve));
 
-  assert.equal(service.getQueueStatus().activeCount, 100);
-  assert.equal(startedRequestSessions.length, 100);
-  assert.deepEqual(new Set(startedRequestSessions), new Set(['shared-conversation']));
+  assert.equal(service.getQueueStatus().activeCount, 10);
+  assert.equal(startedRequestSessions.length, 10);
+  assert.equal(new Set(startedRequestSessions).size, 10);
 
   release();
-  assert.equal((await Promise.all(requests)).length, 100);
+  assert.equal((await Promise.all(requests)).length, 10);
 });
 
 test('detects Chromium persistent profile lock startup errors', () => {
@@ -125,4 +124,28 @@ test('headed Chromium starts minimized without being positioned off-screen', () 
 
   assert.equal(launchArgs.includes('--start-minimized'), true);
   assert.equal(launchArgs.some((argument) => argument.startsWith('--window-position=')), false);
+});
+
+test('transient response timeout retries once in a fresh request tab', async () => {
+  const service = new ChatGPTService();
+  const attempts = [];
+
+  service.sendMessageNow = async (_prompt, _files, _modelId, options) => {
+    attempts.push(options.freshChat);
+
+    if (attempts.length === 1) {
+      const error = new Error('Timed out waiting for Kyrovia response');
+      error.status = 504;
+      throw error;
+    }
+
+    return { text: 'recovered' };
+  };
+
+  const result = await service.sendMessageWithRetry('hello', [], 'nova-instant', {
+    freshChat: false
+  });
+
+  assert.equal(result.text, 'recovered');
+  assert.deepEqual(attempts, [false, true]);
 });

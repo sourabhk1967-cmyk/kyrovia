@@ -17,9 +17,9 @@ const AI_REQUEST_TIMEOUT_MS =
   Number.isFinite(configuredAiTimeoutMs) && configuredAiTimeoutMs > 0
     ? configuredAiTimeoutMs
     : DEFAULT_AI_REQUEST_TIMEOUT_MS;
-const GENERATION_RECOVERY_POLL_MS = 200;
+const GENERATION_RECOVERY_POLL_MS = 2500;
 const GENERATION_RECOVERY_TIMEOUT_MS = 10 * 60 * 1000;
-const GENERATION_PARALLEL_RECOVERY_DELAY_MS = 1;
+const GENERATION_PARALLEL_RECOVERY_DELAY_MS = 12000;
 const DEFAULT_GENERATION_STREAM_IDLE_TIMEOUT_MS = 90 * 1000;
 const configuredGenerationStreamIdleTimeoutMs = Number(
   viteEnv.VITE_GENERATION_STREAM_IDLE_TIMEOUT_MS
@@ -33,6 +33,8 @@ const TOKEN_KEY = 'kyrovia-token';
 const USER_KEY = 'kyrovia-user';
 const LEGACY_TOKEN_KEY = 'chatgpt-proxy-token';
 const LEGACY_USER_KEY = 'chatgpt-proxy-user';
+const TRANSIENT_API_STATUSES = new Set([0, 408, 429, 502, 503, 504, 511, 524]);
+const DEFAULT_RETRY_DELAYS_MS = [500, 1500, 3000, 6000, 10000];
 
 function candidateApiBaseUrls() {
   const urls = [
@@ -61,12 +63,14 @@ export class ApiError extends Error {
 function buildHeaders(options) {
   if (options.body instanceof FormData) {
     return {
+      'Bypass-Tunnel-Reminder': 'true',
       ...(options.headers || {})
     };
   }
 
   return {
     'Content-Type': 'application/json',
+    'Bypass-Tunnel-Reminder': 'true',
     ...(options.headers || {})
   };
 }
@@ -539,13 +543,20 @@ async function request(path, options = {}) {
     !options.parallelRecoveryStarted
   ) {
     const recoveryBaseUrl = candidateApiBaseUrls()[0];
+    let primarySettled = false;
     const primaryRequest = request(path, {
       ...options,
       parallelRecoveryStarted: true
+    }).finally(() => {
+      primarySettled = true;
     });
-    const recoveryRequest = wait(GENERATION_PARALLEL_RECOVERY_DELAY_MS).then(() =>
-      recoverGenerationResult([recoveryBaseUrl], options.generationRequestId, options)
-    );
+    const recoveryRequest = wait(GENERATION_PARALLEL_RECOVERY_DELAY_MS).then(() => {
+      if (primarySettled) {
+        return primaryRequest;
+      }
+
+      return recoverGenerationResult([recoveryBaseUrl], options.generationRequestId, options);
+    });
 
     return Promise.race([
       primaryRequest,
@@ -583,6 +594,30 @@ async function request(path, options = {}) {
   }
 
   throw lastNetworkError || new ApiError('Unable to reach the backend. Make sure the API server is running.', 0);
+}
+
+function isTransientApiError(error) {
+  return error instanceof ApiError && TRANSIENT_API_STATUSES.has(Number(error.status || 0));
+}
+
+async function requestWithTransientRetry(path, options = {}, retryDelays = DEFAULT_RETRY_DELAYS_MS) {
+  let lastError;
+
+  for (let attempt = 0; attempt <= retryDelays.length; attempt += 1) {
+    try {
+      return await request(path, options);
+    } catch (error) {
+      lastError = error;
+
+      if (!isTransientApiError(error) || attempt >= retryDelays.length) {
+        throw error;
+      }
+
+      await wait(retryDelays[attempt]);
+    }
+  }
+
+  throw lastError;
 }
 
 export function getStoredToken() {
@@ -648,14 +683,18 @@ export function chatStatus(token = getStoredToken()) {
   });
 }
 
+export function deploymentStatus() {
+  return request('/deployment');
+}
+
 export function getWorkspace(token = getStoredToken()) {
-  return request('/chat/workspace', {
+  return requestWithTransientRetry('/chat/workspace', {
     headers: buildAuthHeaders(token)
   });
 }
 
 export function saveWorkspaceRemote(workspace, token = getStoredToken()) {
-  return request('/chat/workspace', {
+  return requestWithTransientRetry('/chat/workspace', {
     method: 'PUT',
     headers: buildAuthHeaders(token),
     body: JSON.stringify({ workspace })
@@ -663,7 +702,7 @@ export function saveWorkspaceRemote(workspace, token = getStoredToken()) {
 }
 
 export function createBackendConversation(conversation, token = getStoredToken()) {
-  return request('/chat/conversations', {
+  return requestWithTransientRetry('/chat/conversations', {
     method: 'POST',
     headers: buildAuthHeaders(token),
     body: JSON.stringify({ conversation })
@@ -840,6 +879,34 @@ export function sendMessage(
 
   const generationRequestId = createGenerationRequestId();
 
+  const finishAsyncGeneration = async (submitOptions) => {
+    options.onStatus?.({
+      event: 'accepted',
+      requestId: generationRequestId
+    });
+    const accepted = await requestWithTransientRetry('/chat/send', submitOptions);
+
+    if (accepted?.status !== 'pending') {
+      options.onComplete?.(accepted);
+      return accepted;
+    }
+
+    options.onStatus?.({
+      event: 'started',
+      requestId: accepted.requestId || generationRequestId
+    });
+    const result = await recoverGenerationResult(
+      candidateApiBaseUrls(),
+      accepted.requestId || generationRequestId,
+      {
+        headers: buildAuthHeaders(token),
+        timeoutMs: AI_REQUEST_TIMEOUT_MS
+      }
+    );
+    options.onComplete?.(result);
+    return result;
+  };
+
   if (files.length) {
     const formData = new FormData();
     formData.append('message', message);
@@ -857,28 +924,25 @@ export function sendMessage(
       formData.append('files', file, file.name || 'upload');
     }
 
-    return request('/chat/send', {
+    return finishAsyncGeneration({
       method: 'POST',
       headers: {
         ...buildAuthHeaders(token),
-        Accept: 'application/x-ndjson',
+        Accept: 'application/json',
+        Prefer: 'respond-async',
         'X-Kyrovia-Request-Id': generationRequestId
       },
       body: formData,
-      timeoutMs: AI_REQUEST_TIMEOUT_MS,
-      streamResponse: true,
-      generationRequestId,
-      onStreamEvent: options.onStatus,
-      onStreamComplete: options.onComplete,
-      onStreamMessage: options.onMessage
+      timeoutMs: REQUEST_TIMEOUT_MS
     });
   }
 
-  return request('/chat/send', {
+  return finishAsyncGeneration({
     method: 'POST',
     headers: {
       ...buildAuthHeaders(token),
-      Accept: 'application/x-ndjson',
+      Accept: 'application/json',
+      Prefer: 'respond-async',
       'X-Kyrovia-Request-Id': generationRequestId
     },
     body: JSON.stringify({
@@ -888,11 +952,6 @@ export function sendMessage(
       conversationId,
       intent: options.intent || ''
     }),
-    timeoutMs: AI_REQUEST_TIMEOUT_MS,
-    streamResponse: true,
-    generationRequestId,
-    onStreamEvent: options.onStatus,
-    onStreamComplete: options.onComplete,
-    onStreamMessage: options.onMessage
+    timeoutMs: REQUEST_TIMEOUT_MS
   });
 }

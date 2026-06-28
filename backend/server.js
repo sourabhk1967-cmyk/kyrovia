@@ -80,7 +80,14 @@ app.use((req, res, next) => {
         'X-Kyrovia-Session-Id',
         'X-Kyrovia-Generation-Session-Id'
       ],
-      allowedHeaders: ['Authorization', 'Content-Type', 'Accept', 'X-Kyrovia-Request-Id']
+      allowedHeaders: [
+        'Authorization',
+        'Content-Type',
+        'Accept',
+        'Bypass-Tunnel-Reminder',
+        'Prefer',
+        'X-Kyrovia-Request-Id'
+      ]
     })(req, res, next);
     return;
   }
@@ -120,7 +127,7 @@ app.get('/api/health', (_req, res) => {
     ok: true,
     service: 'kyrovia',
     browserReady: chatgpt.ready,
-    aiProvider: 'chatgpt-browser',
+    aiProvider: 'kyrovia-browser',
     queue: {
       processing: queue.processing,
       active: queue.activeCount,
@@ -133,6 +140,44 @@ app.get('/api/health', (_req, res) => {
       parallelTabs: queue.parallelTabs
     },
     uptimeSeconds: Math.round(process.uptime()),
+    checkedAt: new Date().toISOString()
+  });
+});
+
+app.get('/api/deployment', (_req, res) => {
+  const queue = chatgpt.getQueueStatus();
+  const publicAppUrl = config.server.publicAppUrl || '';
+  const isNetlify = Boolean(process.env.NETLIFY);
+  const runtime = isNetlify ? 'netlify-functions' : 'persistent-node';
+
+  res.json({
+    ok: true,
+    service: 'kyrovia',
+    public: Boolean(publicAppUrl || isNetlify),
+    runtime,
+    publicAppUrl,
+    apiBasePath: '/api',
+    noOpenAiApiKeyRequired: true,
+    backendRequiresPersistentBrowser: true,
+    netlifyFrontendReady: true,
+    netlifyBackendMode:
+      runtime === 'netlify-functions'
+        ? 'limited-serverless-health-only'
+        : 'external-persistent-express',
+    browser: {
+      ready: chatgpt.ready,
+      headless: config.chatgpt.headless,
+      userDataDir: config.chatgpt.userDataDir,
+      queue: {
+        active: queue.activeCount,
+        openTabs: queue.openTabs,
+        pending: queue.pending,
+        maxPending: queue.maxPending,
+        maxConcurrent: queue.maxConcurrent,
+        mode: queue.mode,
+        parallelTabs: queue.parallelTabs
+      }
+    },
     checkedAt: new Date().toISOString()
   });
 });
@@ -178,18 +223,34 @@ app.use((err, _req, res, _next) => {
 
 let server = null;
 let shuttingDown = false;
+const RECOVERABLE_SERVER_ERRORS = new Set(['ECONNABORTED', 'EMFILE', 'ENFILE', 'ENOBUFS']);
+
+function handleServerError(error) {
+  if (RECOVERABLE_SERVER_ERRORS.has(error?.code)) {
+    console.warn(`HTTP server resource pressure (${error.code}). Keeping the service alive.`);
+    return;
+  }
+
+  console.error('HTTP server error:', error);
+  process.exitCode = 1;
+
+  if (!shuttingDown) {
+    setTimeout(() => process.exit(1), 100).unref?.();
+  }
+}
 
 async function start() {
   try {
     await chatgpt.init();
   } catch (error) {
-    console.warn('The ChatGPT browser did not start cleanly. Chat requests will fail until this is fixed.');
+    console.warn('The Kyrovia browser service did not start cleanly. Chat requests will fail until this is fixed.');
     console.warn(error.message);
   }
 
   server = app.listen(config.server.port, () => {
     console.log(`API listening at http://localhost:${config.server.port}`);
   });
+  server.on('error', handleServerError);
 }
 
 async function shutdown(signal) {
@@ -209,7 +270,7 @@ async function shutdown(signal) {
   }
 
   await chatgpt.close().catch((error) => {
-    console.warn(`ChatGPT browser did not close cleanly: ${error.message}`);
+    console.warn(`Kyrovia browser service did not close cleanly: ${error.message}`);
   });
   await whatsappManager.disconnectAll().catch((error) => {
     console.warn(`WhatsApp sockets did not close cleanly: ${error.message}`);
@@ -218,8 +279,16 @@ async function shutdown(signal) {
   process.exit(0);
 }
 
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
-process.on('SIGUSR2', shutdown);
+if (require.main === module) {
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
+  process.on('SIGUSR2', shutdown);
 
-start();
+  start();
+}
+
+module.exports = {
+  app,
+  start,
+  shutdown
+};

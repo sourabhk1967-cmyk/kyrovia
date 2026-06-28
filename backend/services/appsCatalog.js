@@ -140,7 +140,7 @@ const appDetails = {
     privacyPolicy: '',
     termsOfService: '',
     longDescription:
-      'Connect a WhatsApp session through Baileys multi-file authentication. Incoming private WhatsApp messages are sent to the Kyrovia backend, generated through the ChatGPT browser service, and replied to the sender automatically.'
+      'Connect a WhatsApp session through Baileys multi-file authentication. Incoming private WhatsApp messages are sent to the Kyrovia backend, generated through the Kyrovia browser service, and replied to the sender automatically.'
   },
   github: {
     category: 'Developer Tools',
@@ -153,6 +153,39 @@ const appDetails = {
       'Explore repository files, documentation, folder structures, and commit history to understand code, prepare reviews, or document a project. Summarize pull requests, clarify how parts of the codebase fit together, or turn technical details into approachable explanations when sharing work with others.'
   }
 };
+
+function githubConnectDetail() {
+  const configuredUrl = String(process.env.GITHUB_OAUTH_AUTHORIZE_URL || '').trim();
+  const clientId = String(process.env.GITHUB_OAUTH_CLIENT_ID || '').trim();
+
+  if (configuredUrl) {
+    return {
+      connectUrl: configuredUrl,
+      oauthConfigured: true
+    };
+  }
+
+  if (!clientId) {
+    return {
+      connectUrl: 'https://github.com/login',
+      oauthConfigured: false
+    };
+  }
+
+  const authorizeUrl = new URL('https://github.com/login/oauth/authorize');
+  authorizeUrl.searchParams.set('client_id', clientId);
+  authorizeUrl.searchParams.set('scope', String(process.env.GITHUB_OAUTH_SCOPE || 'repo read:user user:email').trim());
+
+  const redirectUri = String(process.env.GITHUB_OAUTH_REDIRECT_URI || '').trim();
+  if (redirectUri) {
+    authorizeUrl.searchParams.set('redirect_uri', redirectUri);
+  }
+
+  return {
+    connectUrl: authorizeUrl.toString(),
+    oauthConfigured: true
+  };
+}
 
 function normalizeApp(tuple, categoryId) {
   const [id, name, description, initials, color] = tuple;
@@ -201,18 +234,23 @@ function getAppDetail(appId) {
     return null;
   }
 
+  const githubConnection = app.id === 'github' ? githubConnectDetail() : {};
+
   return {
     ...app,
-    detail: app.detail || {
-      category: app.categoryLabel,
-      capabilities: app.advancedMode ? `AdvancedMode: ${app.advancedMode}` : 'Kyrovia chat',
-      developer: 'Kyrovia',
-      website: '',
-      privacyPolicy: '',
-      termsOfService: '',
-      longDescription: app.advancedMode
-        ? `${app.description}. This mode preloads a specialized Kyrovia reasoning profile named "${app.advancedMode}".`
-        : app.description
+    detail: {
+      ...(app.detail || {
+        category: app.categoryLabel,
+        capabilities: app.advancedMode ? `AdvancedMode: ${app.advancedMode}` : 'Kyrovia chat',
+        developer: 'Kyrovia',
+        website: '',
+        privacyPolicy: '',
+        termsOfService: '',
+        longDescription: app.advancedMode
+          ? `${app.description}. This mode preloads a specialized Kyrovia reasoning profile named "${app.advancedMode}".`
+          : app.description
+      }),
+      ...githubConnection
     }
   };
 }

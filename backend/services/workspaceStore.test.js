@@ -101,6 +101,79 @@ test('workspace normalization preserves authoritative backend Markdown mode', ()
   assert.equal(workspace.conversations[0].messages[0].content, '## Title\n\n- **Item**');
 });
 
+test('workspace normalization preserves scheduled task setup metadata', () => {
+  const workspace = normalizeWorkspace({
+    conversations: [
+      {
+        id: 'chat-1',
+        scheduledTaskId: 'scheduled-1',
+        messages: [
+          {
+            id: 'message-1',
+            role: 'user',
+            content: 'Send me a daily briefing about the topics I care about most',
+            intent: 'scheduled-task',
+            scheduledTaskId: 'scheduled-1'
+          }
+        ]
+      }
+    ],
+    scheduled: [
+      {
+        id: 'scheduled-1',
+        title: 'Daily briefing',
+        prompt: 'Send me a daily briefing about the topics I care about most',
+        cadence: 'Daily',
+        delivery: 'WhatsApp',
+        active: true,
+        status: 'setup',
+        connectedApps: ['interests', 'whatsapp'],
+        approvalMode: 'safe',
+        accessScopes: ['notifications', 'location']
+      }
+    ],
+    scheduledSettings: {
+      approvalMode: 'full',
+      connectedApps: ['interests', 'web', 'whatsapp'],
+      deviceScopes: {
+        notifications: true,
+        microphone: false,
+        location: true,
+        files: false
+      },
+      updatedAt: '2026-06-20T10:00:00.000Z'
+    }
+  });
+
+  assert.equal(workspace.conversations[0].scheduledTaskId, 'scheduled-1');
+  assert.equal(workspace.conversations[0].messages[0].intent, 'scheduled-task');
+  assert.deepEqual(workspace.scheduled[0], {
+    id: 'scheduled-1',
+    title: 'Daily briefing',
+    prompt: 'Send me a daily briefing about the topics I care about most',
+    cadence: 'Daily',
+    delivery: 'WhatsApp',
+    active: true,
+    status: 'setup',
+    connectedApps: ['interests', 'whatsapp'],
+    approvalMode: 'safe',
+    accessScopes: ['notifications', 'location'],
+    createdAt: workspace.scheduled[0].createdAt,
+    updatedAt: workspace.scheduled[0].updatedAt
+  });
+  assert.deepEqual(workspace.scheduledSettings, {
+    approvalMode: 'full',
+    connectedApps: ['interests', 'web', 'whatsapp'],
+    deviceScopes: {
+      notifications: true,
+      microphone: false,
+      location: true,
+      files: false
+    },
+    updatedAt: '2026-06-20T10:00:00.000Z'
+  });
+});
+
 test('workspace normalization preserves privacy preferences and bounded device usage', () => {
   const workspace = normalizeWorkspace({
     intelligence: {
