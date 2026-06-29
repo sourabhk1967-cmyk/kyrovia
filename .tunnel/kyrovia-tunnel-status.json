@@ -1,7 +1,7 @@
 {
-  "state": "waiting",
-  "detail": "Waiting for kyrovia.loca.lt: Requested hostname \"kyrovia.loca.lt\" is unavailable; LocalTunnel offered \"unlucky-octopus-60.loca.lt\".",
-  "publicUrl": "",
-  "pid": 36664,
-  "updatedAt": "2026-06-28T07:51:17.056Z"
+  "state": "online",
+  "detail": "Tunnel connected.",
+  "publicUrl": "https://kyrovia.loca.lt",
+  "pid": 43912,
+  "updatedAt": "2026-06-29T13:53:05.730Z"
 }
