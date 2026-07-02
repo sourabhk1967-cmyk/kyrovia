@@ -7,11 +7,10 @@
 [build.environment]
   NODE_VERSION = "20"
 
-# API fallback. Set VITE_API_URL to the persistent Express backend for full
-# Playwright chat, uploads, search, WhatsApp, and health features.
+# Proxy API requests to the persistent Express backend running from this laptop tunnel.
 [[redirects]]
   from = "/api/*"
-  to = "/.netlify/functions/backend-unavailable"
+  to = "https://kyrovia.loca.lt/api/:splat"
   status = 200
   force = true
 

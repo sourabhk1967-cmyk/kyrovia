@@ -15,9 +15,9 @@ services:
       - key: NODE_ENV
         value: production
       - key: PUBLIC_APP_URL
-        value: https://kyrovia-2.onrender.com
+        value: https://mambu.in
       - key: CORS_ORIGIN
-        value: "*"
+        value: https://mambu.in,https://www.mambu.in
       - key: JSON_LIMIT
         value: 80mb
       - key: RATE_LIMIT_WINDOW_MS
