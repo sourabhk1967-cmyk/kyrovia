@@ -1,7 +1,7 @@
 {
-  "supervisorPid": 33300,
-  "backendPid": 19692,
-  "tunnelPid": 43912,
+  "supervisorPid": 22800,
+  "backendPid": 21524,
+  "tunnelPid": 16556,
   "tunnelProcessRunning": true,
   "fallbackPid": null,
   "fallbackProcessRunning": false,
@@ -15,7 +15,7 @@
   "publicStatus": 200,
   "fallbackEnabled": false,
   "stopping": false,
-  "checkedAt": "2026-06-29T13:53:09.429Z",
+  "checkedAt": "2026-07-03T08:18:47.856Z",
   "backendHealthy": true,
   "tunnelConnected": true
 }
