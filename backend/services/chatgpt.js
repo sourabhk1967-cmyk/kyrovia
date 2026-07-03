@@ -153,6 +153,7 @@ class ChatGPTService {
     this.activeRequestPages = new Set();
     this.ready = false;
     this.lastStartupError = null;
+    this.browserInstallAttempted = false;
     this.initPromise = null;
     this.requestQueue = new SerialTaskQueue({
       maxConcurrent: options.maxConcurrentTabs,
@@ -239,6 +240,12 @@ class ChatGPTService {
     try {
       return await chromium.launchPersistentContext(this.userDataDir, launchOptions);
     } catch (error) {
+      if (!this.browserInstallAttempted && this.isMissingBrowserExecutableError(error)) {
+        this.browserInstallAttempted = true;
+        await this.installMissingPlaywrightBrowser(error);
+        return chromium.launchPersistentContext(this.userDataDir, launchOptions);
+      }
+
       if (!this.recoverProfileLock || !this.isProfileLockError(error)) {
         throw error;
       }
@@ -265,6 +272,37 @@ class ChatGPTService {
     return /ProcessSingleton|profile (?:directory )?(?:is already )?in use|Opening in existing browser session|Lock file can not be created/i.test(
       String(error?.message || '')
     );
+  }
+
+  isMissingBrowserExecutableError(error) {
+    return /Executable doesn't exist|Please run the following command to download new browsers|playwright install/i.test(
+      String(error?.message || '')
+    );
+  }
+
+  async installMissingPlaywrightBrowser(error) {
+    console.warn(`Playwright browser executable is missing. Attempting runtime install: ${this.formatStartupError(error)}`);
+
+    const playwrightCli = require.resolve('playwright/cli');
+    const backendDir = path.resolve(__dirname, '..');
+
+    try {
+      await execFileAsync(process.execPath, [playwrightCli, 'install', 'chromium'], {
+        cwd: backendDir,
+        env: process.env,
+        timeout: Math.max(this.timeoutMs, 300000),
+        windowsHide: true,
+        maxBuffer: 1024 * 1024 * 8
+      });
+      console.info('Playwright Chromium runtime install completed. Retrying Kyrovia browser startup.');
+    } catch (installError) {
+      const serviceError = createServiceError(
+        503,
+        `Playwright browser executable is missing and automatic install failed. Build with "npm --prefix backend run playwright:install:deps", redeploy, then restart the backend. Install error: ${this.formatStartupError(installError)}`
+      );
+      serviceError.cause = installError;
+      throw serviceError;
+    }
   }
 
   createProfileLockError(error, recovery = {}) {
