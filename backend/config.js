@@ -1,3 +1,12 @@
+function isHostedProductionRuntime() {
+  return (
+    process.env.NODE_ENV === 'production' ||
+    Boolean(process.env.RENDER || process.env.RENDER_EXTERNAL_URL || process.env.RENDER_SERVICE_ID)
+  );
+}
+
+const hostedProductionRuntime = isHostedProductionRuntime();
+
 const DEFAULTS = {
   port: 5050,
   corsOrigin: 'http://localhost:5173',
@@ -9,10 +18,10 @@ const DEFAULTS = {
   maxUploadBytes: 60 * 1024 * 1024,
   maxUploadFiles: 12,
   chatUrl: 'https://chatgpt.com/',
-  playwrightHeadless: false,
+  playwrightHeadless: hostedProductionRuntime,
   playwrightTimeoutMs: 300000,
-  chatMaxConcurrentTabs: 10,
-  chatParallelTabs: true,
+  chatMaxConcurrentTabs: hostedProductionRuntime ? 1 : 10,
+  chatParallelTabs: !hostedProductionRuntime,
   playwrightRecoverProfileLock: true,
   chatQueueMaxPending: 200,
   chatQueueWaitTimeoutMs: 60 * 60 * 1000,

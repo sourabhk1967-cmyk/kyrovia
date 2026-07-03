@@ -152,6 +152,7 @@ class ChatGPTService {
     this.page = null;
     this.activeRequestPages = new Set();
     this.ready = false;
+    this.lastStartupError = null;
     this.initPromise = null;
     this.requestQueue = new SerialTaskQueue({
       maxConcurrent: options.maxConcurrentTabs,
@@ -175,9 +176,17 @@ class ChatGPTService {
       return this.initPromise;
     }
 
-    this.initPromise = this.initBrowser().finally(() => {
-      this.initPromise = null;
-    });
+    this.initPromise = this.initBrowser()
+      .then(() => {
+        this.lastStartupError = null;
+      })
+      .catch((error) => {
+        this.lastStartupError = this.formatStartupError(error);
+        throw error;
+      })
+      .finally(() => {
+        this.initPromise = null;
+      });
 
     return this.initPromise;
   }
@@ -222,6 +231,10 @@ class ChatGPTService {
       viewport: this.viewport,
       args: launchArgs
     };
+
+    console.info(
+      `Starting Kyrovia browser: headless=${this.headless}, userDataDir=${this.userDataDir}, PLAYWRIGHT_BROWSERS_PATH=${process.env.PLAYWRIGHT_BROWSERS_PATH || '(default)'}`
+    );
 
     try {
       return await chromium.launchPersistentContext(this.userDataDir, launchOptions);
@@ -268,8 +281,24 @@ class ChatGPTService {
     return serviceError;
   }
 
+  formatStartupError(error) {
+    const message = String(error?.message || error || 'Unknown browser startup error')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return message.length > 1200 ? `${message.slice(0, 1197)}...` : message;
+  }
+
+  createNotReadyError() {
+    const detail = this.lastStartupError ? ` Last startup error: ${this.lastStartupError}` : '';
+    return createServiceError(
+      503,
+      `Playwright is not ready. Restart the backend and check browser startup logs.${detail}`
+    );
+  }
+
   async recoverLockedProfile() {
-    let stopped = 0;
+    if (process.platform !== 'win32') {
+      let stopped = 0;
       try {
         const lockFiles = ['SingletonLock', 'SingletonCookie', 'SingletonSocket'];
         for (const file of lockFiles) {
@@ -286,7 +315,6 @@ class ChatGPTService {
       } catch (err) {
         console.error('Error recovering locked profile on Linux/Mac:', err);
       }
-    if (process.platform !== 'win32') {
       return {
         supported: true,
         stopped
@@ -381,6 +409,7 @@ Get-CimInstance Win32_Process |
         ready: false,
         loggedIn: false,
         blocked: false,
+        startupError: this.lastStartupError,
         chatUrl: this.chatUrl,
         headless: this.headless,
         timeoutMs: this.timeoutMs,
@@ -528,7 +557,7 @@ Get-CimInstance Win32_Process |
 
   async startNewChatNow() {
     if (!this.ready) {
-      throw createServiceError(503, 'Playwright is not ready. Restart the backend and check browser startup logs.');
+      throw this.createNotReadyError();
     }
 
     const page = await this.ensurePage();
@@ -557,7 +586,7 @@ Get-CimInstance Win32_Process |
 
   async sendMessageNow(prompt, files = [], modelId = DEFAULT_MODEL_ID, options = {}) {
     if (!this.ready) {
-      throw createServiceError(503, 'Playwright is not ready. Restart the backend and check browser startup logs.');
+      throw this.createNotReadyError();
     }
 
     if (typeof prompt !== 'string' || !prompt.trim()) {

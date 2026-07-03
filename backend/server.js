@@ -127,6 +127,8 @@ app.get('/api/health', (_req, res) => {
     ok: true,
     service: 'kyrovia',
     browserReady: chatgpt.ready,
+    browserStartupError: chatgpt.lastStartupError,
+    browserHeadless: config.chatgpt.headless,
     aiProvider: 'kyrovia-browser',
     queue: {
       processing: queue.processing,
@@ -166,6 +168,7 @@ app.get('/api/deployment', (_req, res) => {
         : 'external-persistent-express',
     browser: {
       ready: chatgpt.ready,
+      startupError: chatgpt.lastStartupError,
       headless: config.chatgpt.headless,
       userDataDir: config.chatgpt.userDataDir,
       queue: {
