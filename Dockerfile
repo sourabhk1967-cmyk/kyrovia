@@ -1,5 +1,5 @@
 # Use the official Playwright image which includes Node, Chromium, and all system dependencies.
-FROM mcr.microsoft.com/playwright:v1.49.1-noble
+FROM mcr.microsoft.com/playwright:v1.60.0-noble
 WORKDIR /app
 # Copy all application code
 COPY . .
