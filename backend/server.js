@@ -14,12 +14,19 @@ const codeRoutes = require('./routes/code');
 const healthRoutes = require('./routes/health');
 const searchRoutes = require('./routes/search');
 const whatsappRoutes = require('./routes/whatsapp');
-const ChatGPTService = require('./services/chatgpt');
 const { WhatsAppManager } = require('./services/whatsappManager');
 
 dotenv.config();
 
+if (
+  !process.env.PLAYWRIGHT_BROWSERS_PATH &&
+  (process.env.RENDER || process.env.RENDER_EXTERNAL_URL || process.env.RENDER_SERVICE_ID)
+) {
+  process.env.PLAYWRIGHT_BROWSERS_PATH = '0';
+}
+
 const config = loadConfig();
+const ChatGPTService = require('./services/chatgpt');
 const app = express();
 const chatgpt = new ChatGPTService(config.chatgpt);
 const whatsappManager = new WhatsAppManager(config.whatsapp, {
@@ -242,16 +249,19 @@ function handleServerError(error) {
   }
 }
 
-async function start() {
+async function startBrowserService() {
   try {
     await chatgpt.init();
   } catch (error) {
     console.warn('The Kyrovia browser service did not start cleanly. Chat requests will fail until this is fixed.');
     console.warn(error.message);
   }
+}
 
+async function start() {
   server = app.listen(config.server.port, () => {
     console.log(`API listening at http://localhost:${config.server.port}`);
+    startBrowserService();
   });
   server.on('error', handleServerError);
 }
