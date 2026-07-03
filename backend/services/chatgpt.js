@@ -201,7 +201,15 @@ class ChatGPTService {
   getLaunchArgs() {
     const launchArgs = ['--disable-blink-features=AutomationControlled'];
 
-    if (!this.headless) {
+    if (this.headless) {
+      launchArgs.push(
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--single-process'
+      );
+    } else {
       launchArgs.push('--start-minimized');
     }
 
