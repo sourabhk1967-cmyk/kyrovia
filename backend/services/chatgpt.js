@@ -283,11 +283,25 @@ class ChatGPTService {
   async installMissingPlaywrightBrowser(error) {
     console.warn(`Playwright browser executable is missing. Attempting runtime install: ${this.formatStartupError(error)}`);
 
-    const playwrightCli = require.resolve('playwright/cli');
+    // Resolve the playwright CLI script path without relying on the './cli' subpath
+    // export, which was removed in Playwright v1.44+. Instead, locate playwright's
+    // package directory and reference 'cli.js' directly from within it.
+    let playwrightCli;
+    try {
+      const playwrightPkg = path.dirname(require.resolve('playwright/package.json'));
+      playwrightCli = path.join(playwrightPkg, 'cli.js');
+    } catch (_resolveError) {
+      // Fallback: use npx to invoke the playwright binary
+      playwrightCli = null;
+    }
+
     const backendDir = path.resolve(__dirname, '..');
+    const execArgs = playwrightCli
+      ? [playwrightCli, 'install', 'chromium']
+      : [require.resolve('playwright-core/cli'), 'install', 'chromium'];
 
     try {
-      await execFileAsync(process.execPath, [playwrightCli, 'install', 'chromium'], {
+      await execFileAsync(process.execPath, execArgs, {
         cwd: backendDir,
         env: process.env,
         timeout: Math.max(this.timeoutMs, 300000),
