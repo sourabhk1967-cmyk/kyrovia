@@ -206,8 +206,7 @@ class ChatGPTService {
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--single-process'
+        '--disable-gpu'
       );
     } else {
       launchArgs.push('--start-minimized');
@@ -219,7 +218,6 @@ class ChatGPTService {
   async launchBrowserContext(launchArgs) {
     const launchOptions = {
       headless: this.headless,
-      channel: this.headless ? 'chromium' : undefined,
       acceptDownloads: true,
       viewport: this.viewport,
       args: launchArgs
@@ -271,10 +269,27 @@ class ChatGPTService {
   }
 
   async recoverLockedProfile() {
+    let stopped = 0;
+      try {
+        const lockFiles = ['SingletonLock', 'SingletonCookie', 'SingletonSocket'];
+        for (const file of lockFiles) {
+          const filePath = path.join(this.userDataDir, file);
+          try {
+            await fs.unlink(filePath);
+            stopped++;
+          } catch (unlinkErr) {
+            if (unlinkErr.code !== 'ENOENT') {
+              console.warn(`Could not unlink ${filePath}: ${unlinkErr.message}`);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error recovering locked profile on Linux/Mac:', err);
+      }
     if (process.platform !== 'win32') {
       return {
-        supported: false,
-        stopped: 0
+        supported: true,
+        stopped
       };
     }
 
