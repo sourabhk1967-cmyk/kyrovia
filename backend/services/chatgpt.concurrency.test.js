@@ -1,5 +1,4 @@
 const assert = require('node:assert/strict');
-const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const test = require('node:test');
 
@@ -120,35 +119,31 @@ test('detects Chromium persistent profile lock startup errors', () => {
   assert.equal(service.isProfileLockError(new Error('Navigation timed out')), false);
 });
 
-test('hosted runtime maps stale Render Playwright browser paths to the deployed project path', () => {
-  const expectedPath = path.resolve(__dirname, '..', '.playwright-browsers');
-
-  for (const stalePath of ['0', '/opt/render/.cache/ms-playwright']) {
-    const result = spawnSync(
-      process.execPath,
+test('hosted runtime uses Playwright managed local browser installation', () => {
+  const result = spawnSync(
+    process.execPath,
+    [
+      '-e',
       [
-        '-e',
-        [
-          `process.env.PLAYWRIGHT_BROWSERS_PATH = ${JSON.stringify(stalePath)};`,
-          "process.env.RENDER = '1';",
-          "require('./chatgpt');",
-          'console.log(process.env.PLAYWRIGHT_BROWSERS_PATH);'
-        ].join('')
-      ],
-      {
-        cwd: __dirname,
-        env: {
-          ...process.env,
-          PLAYWRIGHT_BROWSERS_PATH: stalePath,
-          RENDER: '1'
-        },
-        encoding: 'utf8'
-      }
-    );
+        "process.env.PLAYWRIGHT_BROWSERS_PATH = '/opt/render/.cache/ms-playwright';",
+        "process.env.RENDER = '1';",
+        "require('./chatgpt');",
+        'console.log(process.env.PLAYWRIGHT_BROWSERS_PATH);'
+      ].join('')
+    ],
+    {
+      cwd: __dirname,
+      env: {
+        ...process.env,
+        PLAYWRIGHT_BROWSERS_PATH: '/opt/render/.cache/ms-playwright',
+        RENDER: '1'
+      },
+      encoding: 'utf8'
+    }
+  );
 
-    assert.equal(result.status, 0, result.stderr);
-    assert.equal(result.stdout.trim(), expectedPath);
-  }
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout.trim(), '0');
 });
 
 test('headed Chromium starts minimized without being positioned off-screen', () => {
@@ -159,7 +154,7 @@ test('headed Chromium starts minimized without being positioned off-screen', () 
   assert.equal(launchArgs.some((argument) => argument.startsWith('--window-position=')), false);
 });
 
-test('headless Chromium uses the full bundled Chromium browser channel', async () => {
+test('browser launch does not override Playwright browser discovery', async () => {
   const service = new ChatGPTService({ headless: true });
   let launchOptions = null;
 
@@ -181,7 +176,8 @@ test('headless Chromium uses the full bundled Chromium browser channel', async (
     chromium.launchPersistentContext = original;
   }
 
-  assert.equal(launchOptions.channel, 'chromium');
+  assert.equal(launchOptions.channel, undefined);
+  assert.equal(launchOptions.executablePath, undefined);
 });
 
 test('transient response timeout retries once in a fresh request tab', async () => {

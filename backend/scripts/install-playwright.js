@@ -2,10 +2,9 @@ const { spawnSync } = require('child_process');
 const path = require('path');
 
 const hostedRenderRuntime = Boolean(process.env.RENDER || process.env.RENDER_EXTERNAL_URL || process.env.RENDER_SERVICE_ID);
-const renderPlaywrightBrowsersPath = path.resolve(__dirname, '..', '.playwright-browsers');
 
 if (hostedRenderRuntime) {
-  process.env.PLAYWRIGHT_BROWSERS_PATH = renderPlaywrightBrowsersPath;
+  process.env.PLAYWRIGHT_BROWSERS_PATH = '0';
 } else if (!process.env.PLAYWRIGHT_BROWSERS_PATH) {
   process.env.PLAYWRIGHT_BROWSERS_PATH = '0';
 }

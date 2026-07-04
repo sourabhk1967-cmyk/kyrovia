@@ -19,8 +19,9 @@ const { WhatsAppManager } = require('./services/whatsappManager');
 dotenv.config();
 
 if (
-  !process.env.PLAYWRIGHT_BROWSERS_PATH &&
-  (process.env.RENDER || process.env.RENDER_EXTERNAL_URL || process.env.RENDER_SERVICE_ID)
+  process.env.RENDER ||
+  process.env.RENDER_EXTERNAL_URL ||
+  process.env.RENDER_SERVICE_ID
 ) {
   process.env.PLAYWRIGHT_BROWSERS_PATH = '0';
 }
