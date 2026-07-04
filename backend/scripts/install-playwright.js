@@ -1,7 +1,14 @@
 const { spawnSync } = require('child_process');
 const path = require('path');
 
-process.env.PLAYWRIGHT_BROWSERS_PATH = process.env.PLAYWRIGHT_BROWSERS_PATH || '0';
+const hostedRenderRuntime = Boolean(process.env.RENDER || process.env.RENDER_EXTERNAL_URL || process.env.RENDER_SERVICE_ID);
+
+if (hostedRenderRuntime && (!process.env.PLAYWRIGHT_BROWSERS_PATH || process.env.PLAYWRIGHT_BROWSERS_PATH === '0')) {
+  process.env.PLAYWRIGHT_BROWSERS_PATH = '/opt/render/.cache/ms-playwright';
+} else if (!process.env.PLAYWRIGHT_BROWSERS_PATH) {
+  process.env.PLAYWRIGHT_BROWSERS_PATH =
+    hostedRenderRuntime ? '/opt/render/.cache/ms-playwright' : '0';
+}
 
 const playwrightPackageDir = path.dirname(require.resolve('playwright/package.json'));
 const playwrightCli = path.join(playwrightPackageDir, 'cli.js');
@@ -9,9 +16,9 @@ const result = spawnSync(
   process.execPath,
   [playwrightCli, 'install', 'chromium', 'chromium-headless-shell'],
   {
-  cwd: path.resolve(__dirname, '..'),
-  env: process.env,
-  stdio: 'inherit'
+    cwd: path.resolve(__dirname, '..'),
+    env: process.env,
+    stdio: 'inherit'
   }
 );
 
