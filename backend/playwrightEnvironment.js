@@ -5,7 +5,11 @@ function isRenderRuntime() {
 }
 
 function configurePlaywrightBrowserPath() {
-  if (isRenderRuntime() && (!process.env.PLAYWRIGHT_BROWSERS_PATH || process.env.PLAYWRIGHT_BROWSERS_PATH === '0')) {
+  // On Render, ALWAYS use the project-local cache directory so that the build
+  // step (which downloads Chromium) and the runtime (which launches it) resolve
+  // the exact same path.  Any externally-set PLAYWRIGHT_BROWSERS_PATH is
+  // overridden to prevent mismatches (e.g. /opt/render/.cache vs project-local).
+  if (isRenderRuntime()) {
     process.env.PLAYWRIGHT_BROWSERS_PATH = path.resolve(__dirname, '.cache', 'ms-playwright');
   } else if (!process.env.PLAYWRIGHT_BROWSERS_PATH) {
     process.env.PLAYWRIGHT_BROWSERS_PATH = '0';
