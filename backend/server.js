@@ -6,6 +6,7 @@ const helmet = require('helmet');
 const path = require('path');
 const rateLimit = require('express-rate-limit');
 
+const { configurePlaywrightBrowserPath } = require('./playwrightEnvironment');
 const { loadConfig } = require('./config');
 const appsRoutes = require('./routes/apps');
 const authRoutes = require('./routes/auth');
@@ -17,14 +18,7 @@ const whatsappRoutes = require('./routes/whatsapp');
 const { WhatsAppManager } = require('./services/whatsappManager');
 
 dotenv.config();
-
-if (
-  process.env.RENDER ||
-  process.env.RENDER_EXTERNAL_URL ||
-  process.env.RENDER_SERVICE_ID
-) {
-  process.env.PLAYWRIGHT_BROWSERS_PATH = '0';
-}
+configurePlaywrightBrowserPath();
 
 const config = loadConfig();
 const ChatGPTService = require('./services/chatgpt');

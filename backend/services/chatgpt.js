@@ -2,14 +2,9 @@ const fs = require('fs/promises');
 const path = require('path');
 const { execFile } = require('child_process');
 const { promisify } = require('util');
+const { configurePlaywrightBrowserPath } = require('../playwrightEnvironment');
 
-if (
-  process.env.RENDER ||
-  process.env.RENDER_EXTERNAL_URL ||
-  process.env.RENDER_SERVICE_ID
-) {
-  process.env.PLAYWRIGHT_BROWSERS_PATH = '0';
-}
+configurePlaywrightBrowserPath();
 
 const { chromium } = require('playwright');
 const sharp = require('sharp');
@@ -241,16 +236,12 @@ class ChatGPTService {
       viewport: this.viewport,
       args: launchArgs
     };
-    const chromiumExecutablePath = chromium.executablePath();
-
-    if (this.headless) {
-      launchOptions.executablePath = chromiumExecutablePath;
-    }
+    this.refreshHeadlessExecutablePath(launchOptions);
 
     console.info(
       `Starting Kyrovia browser: headless=${this.headless}, userDataDir=${this.userDataDir}, PLAYWRIGHT_BROWSERS_PATH=${process.env.PLAYWRIGHT_BROWSERS_PATH || '(default)'}`
     );
-    console.info(`Playwright Chromium executable path: ${chromiumExecutablePath}`);
+    console.info(`Playwright Chromium executable path: ${launchOptions.executablePath || chromium.executablePath()}`);
 
     try {
       return await chromium.launchPersistentContext(this.userDataDir, launchOptions);
@@ -258,6 +249,7 @@ class ChatGPTService {
       if (!this.browserInstallAttempted && this.isMissingBrowserExecutableError(error)) {
         this.browserInstallAttempted = true;
         await this.installMissingPlaywrightBrowser(error);
+        this.refreshHeadlessExecutablePath(launchOptions);
         return chromium.launchPersistentContext(this.userDataDir, launchOptions);
       }
 
@@ -289,6 +281,12 @@ class ChatGPTService {
     );
   }
 
+  refreshHeadlessExecutablePath(launchOptions) {
+    if (this.headless) {
+      launchOptions.executablePath = chromium.executablePath();
+    }
+  }
+
   isMissingBrowserExecutableError(error) {
     return /Executable doesn't exist|Please run the following command to download new browsers|playwright install/i.test(
       String(error?.message || '')
@@ -312,8 +310,8 @@ class ChatGPTService {
 
     const backendDir = path.resolve(__dirname, '..');
     const execArgs = playwrightCli
-      ? [playwrightCli, 'install', 'chromium', 'chromium-headless-shell']
-      : [require.resolve('playwright-core/cli'), 'install', 'chromium', 'chromium-headless-shell'];
+      ? [playwrightCli, 'install', '--force', 'chromium', 'chromium-headless-shell']
+      : [require.resolve('playwright-core/cli'), 'install', '--force', 'chromium', 'chromium-headless-shell'];
 
     try {
       await execFileAsync(process.execPath, execArgs, {
@@ -323,6 +321,7 @@ class ChatGPTService {
         windowsHide: true,
         maxBuffer: 1024 * 1024 * 8
       });
+      await fs.access(chromium.executablePath());
       console.info('Playwright Chromium runtime install completed. Retrying Kyrovia browser startup.');
     } catch (installError) {
       const serviceError = createServiceError(
