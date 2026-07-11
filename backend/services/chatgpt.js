@@ -47,15 +47,15 @@ const BLOCKING_MODAL_SELECTORS = [
 ];
 const DEFAULT_TIMEOUT_MS = 120000;
 const DEFAULT_VIEWPORT = { width: 1365, height: 900 };
-const RESPONSE_POLL_INTERVAL_MS = 75;
-const STABLE_READS_REQUIRED = 2;
-const TEXT_STABLE_WHILE_GENERATING_READS = 40;
-const RESPONSE_FINAL_SETTLE_MS = 300;
-const PROMPT_READY_TIMEOUT_MS = 30000;
-const COMPOSER_FILL_VERIFY_TIMEOUT_MS = 3000;
-const COMPOSER_FILL_SETTLE_MS = 150;
-const MIN_DOWNLOAD_LINK_WAIT_MS = 8000;
-const DOWNLOAD_LINK_SETTLE_MS = 30000;
+const RESPONSE_POLL_INTERVAL_MS = 40;
+const STABLE_READS_REQUIRED = 1;
+const TEXT_STABLE_WHILE_GENERATING_READS = 12;
+const RESPONSE_FINAL_SETTLE_MS = 80;
+const PROMPT_READY_TIMEOUT_MS = 10000;
+const COMPOSER_FILL_VERIFY_TIMEOUT_MS = 1500;
+const COMPOSER_FILL_SETTLE_MS = 50;
+const MIN_DOWNLOAD_LINK_WAIT_MS = 4000;
+const DOWNLOAD_LINK_SETTLE_MS = 15000;
 const MAX_BLOCKER_TEXT_LENGTH = 280;
 const MAX_CAPTURED_IMAGES = 1;
 const MAX_CAPTURED_SOURCES = 8;
@@ -208,7 +208,7 @@ class ChatGPTService {
     this.page = await this.ensurePage();
     await this.page.goto(this.chatUrl, { waitUntil: 'domcontentloaded', timeout: this.timeoutMs });
     await this.page.keyboard.press('Control+0').catch(() => undefined);
-    await this.page.waitForTimeout(250);
+    await this.page.waitForTimeout(100);
     this.ready = true;
   }
 
@@ -262,7 +262,7 @@ class ChatGPTService {
         console.warn(
           `Attempted profile lock recovery (stopped ${recovery.stopped} stale process(es)). Retrying Kyrovia browser startup.`
         );
-        await new Promise((resolve) => setTimeout(resolve, 1500));
+        await new Promise((resolve) => setTimeout(resolve, 500));
 
         try {
           return await chromium.launchPersistentContext(this.userDataDir, launchOptions);
@@ -589,7 +589,7 @@ Get-CimInstance Win32_Process |
           throw error;
         }
 
-        await new Promise((resolve) => setTimeout(resolve, 1200));
+        await new Promise((resolve) => setTimeout(resolve, 400));
       }
     }
 
@@ -1332,11 +1332,11 @@ Get-CimInstance Win32_Process |
       );
 
       if (!uploading && (!targetNames.length || visibleNames.some(Boolean) || Date.now() - startedAt > 2500)) {
-        await page.waitForTimeout(800);
+        await page.waitForTimeout(300);
         return;
       }
 
-      await page.waitForTimeout(500);
+      await page.waitForTimeout(200);
     }
   }
 
