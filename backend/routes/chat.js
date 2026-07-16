@@ -405,11 +405,15 @@ async function sendToBrowserWorker(req, requestPayload, { requestId, generationS
     ? AbortSignal.any([signal, timeoutSignal])
     : timeoutSignal;
 
+  console.info(`Forwarding Kyrovia generation ${requestId} to browser worker: ${endpoint}`);
+
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
       Accept: 'application/json',
       'Content-Type': 'application/json',
+      'Bypass-Tunnel-Reminder': 'true',
+      'User-Agent': 'Kyrovia-Render-Worker/1.0',
       'X-Kyrovia-Worker-Secret': worker.secret,
       'X-Kyrovia-Request-Id': requestId,
       'X-Kyrovia-Generation-Session-Id': generationSessionId
@@ -452,6 +456,8 @@ async function getBrowserWorkerStatus(req) {
   const response = await fetch(endpoint, {
     headers: {
       Accept: 'application/json',
+      'Bypass-Tunnel-Reminder': 'true',
+      'User-Agent': 'Kyrovia-Render-Worker/1.0',
       'X-Kyrovia-Worker-Secret': worker.secret
     },
     signal: AbortSignal.timeout(Math.min(worker.timeoutMs || 30000, 30000))
@@ -497,6 +503,20 @@ function rewriteBrowserWorkerAssets(req, payload = {}) {
   return {
     ...payload,
     images
+  };
+}
+
+function buildBrowserWorkerPayload(req, workerPayload = {}, generationSessionId = '') {
+  return {
+    ...rewriteBrowserWorkerAssets(req, workerPayload),
+    generationSessionId,
+    requestId: undefined,
+    queue: {
+      ...(workerPayload.queue || {}),
+      worker: true,
+      routedVia: 'browser-worker'
+    },
+    browserWorker: true
   };
 }
 
@@ -1249,13 +1269,14 @@ async function handleSendRequest(req, res, next) {
     res.set('X-Kyrovia-Generation-Session-Id', generationSessionId);
 
     if (shouldUseBrowserWorker(req)) {
-      requestAbortController = new AbortController();
-      abortOnClose = () => {
-        if (!res.writableEnded && !generationStarted) {
-          requestAbortController.abort();
-        }
+      const workerRequest = {
+        message,
+        model,
+        appId: appInput || '',
+        conversationId,
+        intent: intentInput || '',
+        files: serializeFilesForWorker(files)
       };
-      res.once('close', abortOnClose);
 
       if (respondAsync) {
         res.status(202).json({
@@ -1264,7 +1285,32 @@ async function handleSendRequest(req, res, next) {
           status: 'pending',
           worker: true
         });
+
+        sendToBrowserWorker(req, workerRequest, {
+          requestId: deliveryRequestId,
+          generationSessionId
+        })
+          .then((workerPayload) => {
+            generationResults.complete(
+              deliveryRequestId,
+              req.user.username,
+              buildBrowserWorkerPayload(req, workerPayload, generationSessionId)
+            );
+          })
+          .catch((error) => {
+            const safeError = safeRouteError(error);
+            console.warn(`Kyrovia browser worker generation ${deliveryRequestId} failed: ${safeError.message}`);
+            generationResults.fail(deliveryRequestId, req.user.username, safeError);
+          });
+        return;
       } else if (wantsGenerationEvents(req)) {
+        requestAbortController = new AbortController();
+        abortOnClose = () => {
+          if (!res.writableEnded && !generationStarted) {
+            requestAbortController.abort();
+          }
+        };
+        res.once('close', abortOnClose);
         eventStream = startGenerationEventStream(res);
         eventStream.send('accepted', {
           requestId: deliveryRequestId,
@@ -1273,6 +1319,13 @@ async function handleSendRequest(req, res, next) {
           message: 'Backend accepted the generation request and sent it to the laptop worker.'
         });
       } else {
+        requestAbortController = new AbortController();
+        abortOnClose = () => {
+          if (!res.writableEnded && !generationStarted) {
+            requestAbortController.abort();
+          }
+        };
+        res.once('close', abortOnClose);
         heartbeat = startJsonHeartbeat(res);
       }
 
@@ -1292,33 +1345,12 @@ async function handleSendRequest(req, res, next) {
         waitMs: 0
       });
 
-      const workerPayload = await sendToBrowserWorker(
-        req,
-        {
-          message,
-          model,
-          appId: appInput || '',
-          conversationId,
-          intent: intentInput || '',
-          files: serializeFilesForWorker(files)
-        },
-        {
-          requestId: deliveryRequestId,
-          generationSessionId,
-          signal: requestAbortController.signal
-        }
-      );
-      const payload = {
-        ...rewriteBrowserWorkerAssets(req, workerPayload),
+      const workerPayload = await sendToBrowserWorker(req, workerRequest, {
+        requestId: deliveryRequestId,
         generationSessionId,
-        requestId: undefined,
-        queue: {
-          ...(workerPayload.queue || {}),
-          worker: true,
-          routedVia: 'browser-worker'
-        },
-        browserWorker: true
-      };
+        signal: requestAbortController.signal
+      });
+      const payload = buildBrowserWorkerPayload(req, workerPayload, generationSessionId);
 
       generationResults.complete(deliveryRequestId, req.user.username, payload);
       if (eventStream) {
