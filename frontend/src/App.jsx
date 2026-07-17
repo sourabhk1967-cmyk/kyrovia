@@ -153,6 +153,28 @@ function App() {
     }
   }
 
+  async function handleSessionExpired() {
+    try {
+      const googleSession = await restoreGoogleSession();
+
+      if (!googleSession?.idToken) {
+        await handleLogout();
+        return null;
+      }
+
+      const result = await loginWithFirebaseIdToken(googleSession.idToken);
+      setStoredToken(result.token);
+      setStoredUser(result.user);
+      setToken(result.token);
+      setUser(result.user);
+      setAuthError('');
+      return result.token;
+    } catch (_error) {
+      await handleLogout();
+      return null;
+    }
+  }
+
   if (checkingSession) {
     return <LoadingScreen label="Checking session" />;
   }
@@ -171,7 +193,12 @@ function App() {
 
   return (
     <Suspense fallback={<LoadingScreen label="Loading chat" />}>
-      <Chat key={user.firebaseUid || user.username} session={session} onLogout={handleLogout} />
+      <Chat
+        key={user.firebaseUid || user.username}
+        session={session}
+        onLogout={handleLogout}
+        onSessionExpired={handleSessionExpired}
+      />
     </Suspense>
   );
 }

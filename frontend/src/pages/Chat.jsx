@@ -6847,7 +6847,7 @@ function Composer({
   );
 }
 
-function Chat({ session, onLogout }) {
+function Chat({ session, onLogout, onSessionExpired }) {
   const [workspace, setWorkspace] = useState(() => loadWorkspace(session.user.username));
   const [draft, setDraft] = useState('');
   const [attachments, setAttachments] = useState([]);
@@ -6926,6 +6926,21 @@ function Chat({ session, onLogout }) {
   const activeConversation =
     conversations.find((conversation) => conversation.id === workspace.activeId) || conversations[0];
   const hasMessages = Boolean(activeConversation?.messages?.length);
+
+  const handleUnauthorized = useCallback(async (errorMessage = 'Session refreshed. Please try again.') => {
+    if (typeof onSessionExpired === 'function') {
+      const refreshedToken = await onSessionExpired();
+
+      if (refreshedToken) {
+        setError(errorMessage);
+        return true;
+      }
+    }
+
+    onLogout();
+    return false;
+  }, [onLogout, onSessionExpired]);
+
   const activeConversationApp = useMemo(() => {
     if (!activeConversation?.appId) {
       return null;
@@ -7010,13 +7025,13 @@ function Chat({ session, onLogout }) {
       setStatus(nextStatus);
     } catch (statusError) {
       if (statusError.status === 401) {
-        onLogout();
+        await handleUnauthorized('Session refreshed. Try again.');
         return;
       }
 
       setError(statusError.message);
     }
-  }, [onLogout, session.token]);
+  }, [handleUnauthorized, session.token]);
 
   useEffect(() => {
     refreshStatus();
@@ -8956,7 +8971,7 @@ function Chat({ session, onLogout }) {
       }
     } catch (sendError) {
       if (sendError.status === 401) {
-        onLogout();
+        await handleUnauthorized('Session refreshed. Send the message again.');
         return;
       }
       setError(sendError.message);
@@ -9200,7 +9215,7 @@ function Chat({ session, onLogout }) {
       await refreshStatus();
     } catch (sendError) {
       if (sendError.status === 401) {
-        onLogout();
+        await handleUnauthorized('Session refreshed. Send the message again.');
         return;
       }
 
