@@ -157,3 +157,35 @@ test('uses a stored direct laptop API URL before the deployed API path', () => {
     }
   }
 });
+
+test('uses the Kyrovia laptop tunnel by default on the mambu Render host', () => {
+  const previousWindow = globalThis.window;
+
+  globalThis.window = {
+    location: {
+      hostname: 'mambu.onrender.com',
+      origin: 'https://mambu.onrender.com',
+      search: ''
+    },
+    localStorage: {
+      getItem() {
+        return null;
+      },
+      setItem() {},
+      removeItem() {}
+    }
+  };
+
+  try {
+    assert.deepEqual(candidateApiBaseUrls().slice(0, 2), [
+      'https://kyrovia.loca.lt/api',
+      '/api'
+    ]);
+  } finally {
+    if (previousWindow === undefined) {
+      delete globalThis.window;
+    } else {
+      globalThis.window = previousWindow;
+    }
+  }
+});

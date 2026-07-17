@@ -37,6 +37,11 @@ const LEGACY_TOKEN_KEY = 'chatgpt-proxy-token';
 const LEGACY_USER_KEY = 'chatgpt-proxy-user';
 const TRANSIENT_API_STATUSES = new Set([0, 408, 429, 502, 503, 504, 511, 524]);
 const DEFAULT_RETRY_DELAYS_MS = [500, 1500, 3000, 6000, 10000];
+const HOST_DIRECT_API_URLS = {
+  'mambu.onrender.com': 'https://kyrovia.loca.lt/api',
+  'mambu.in': 'https://kyrovia.loca.lt/api',
+  'www.mambu.in': 'https://kyrovia.loca.lt/api'
+};
 
 function normalizeApiBaseUrl(value = '') {
   const rawValue = String(value || '').trim();
@@ -102,7 +107,17 @@ function resolveDirectApiBaseUrl() {
     }
   }
 
-  return urlValue || readStoredDirectApiUrl() || normalizeApiBaseUrl(DIRECT_API_URL);
+  const hostedDefault =
+    typeof window !== 'undefined'
+      ? HOST_DIRECT_API_URLS[window.location.hostname] || ''
+      : '';
+
+  return (
+    urlValue ||
+    readStoredDirectApiUrl() ||
+    normalizeApiBaseUrl(DIRECT_API_URL) ||
+    normalizeApiBaseUrl(hostedDefault)
+  );
 }
 
 export function setDirectApiBaseUrl(value = '') {
