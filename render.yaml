@@ -17,7 +17,7 @@ services:
       - key: PUBLIC_APP_URL
         value: https://mambu.in
       - key: CORS_ORIGIN
-        value: https://mambu.in,https://www.mambu.in
+        value: https://mambu.in,https://www.mambu.in,https://mambu.sourabhk1967.workers.dev
       - key: JSON_LIMIT
         value: 80mb
       - key: RATE_LIMIT_WINDOW_MS

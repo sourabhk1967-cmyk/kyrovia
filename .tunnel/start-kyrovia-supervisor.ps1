@@ -29,7 +29,7 @@ $env:KYROVIA_TUNNEL_RESTART_MS = '3000'
 $env:KYROVIA_SUPERVISOR_CHECK_MS = '5000'
 
 if (-not $env:CORS_ORIGIN) {
-  $env:CORS_ORIGIN = 'https://mambu.onrender.com,https://mambu.in,https://www.mambu.in,http://localhost:5173'
+  $env:CORS_ORIGIN = 'https://mambu.onrender.com,https://mambu.in,https://www.mambu.in,https://mambu.sourabhk1967.workers.dev,http://localhost:5173'
 }
 
 if (-not $env:PUBLIC_APP_URL) {

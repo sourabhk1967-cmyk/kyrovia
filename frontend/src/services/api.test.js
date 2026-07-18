@@ -190,7 +190,7 @@ test('uses the Kyrovia laptop tunnel by default on the mambu Render host', () =>
   }
 });
 
-test('uses same-origin streaming API on Cloudflare Workers hosts', () => {
+test('uses the Kyrovia laptop tunnel by default on Cloudflare Workers hosts', () => {
   const previousWindow = globalThis.window;
 
   globalThis.window = {
@@ -210,10 +210,10 @@ test('uses same-origin streaming API on Cloudflare Workers hosts', () => {
 
   try {
     assert.deepEqual(candidateApiBaseUrls().slice(0, 2), [
-      'https://mambu.sourabhk1967.workers.dev/api',
+      'https://kyrovia.loca.lt/api',
       '/api'
     ]);
-    assert.equal(getDirectApiBaseUrl(), 'https://mambu.sourabhk1967.workers.dev/api');
+    assert.equal(getDirectApiBaseUrl(), 'https://kyrovia.loca.lt/api');
   } finally {
     if (previousWindow === undefined) {
       delete globalThis.window;
