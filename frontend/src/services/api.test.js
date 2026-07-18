@@ -189,3 +189,36 @@ test('uses the Kyrovia laptop tunnel by default on the mambu Render host', () =>
     }
   }
 });
+
+test('uses same-origin streaming API on Cloudflare Workers hosts', () => {
+  const previousWindow = globalThis.window;
+
+  globalThis.window = {
+    location: {
+      hostname: 'mambu.sourabhk1967.workers.dev',
+      origin: 'https://mambu.sourabhk1967.workers.dev',
+      search: ''
+    },
+    localStorage: {
+      getItem() {
+        return null;
+      },
+      setItem() {},
+      removeItem() {}
+    }
+  };
+
+  try {
+    assert.deepEqual(candidateApiBaseUrls().slice(0, 2), [
+      'https://mambu.sourabhk1967.workers.dev/api',
+      '/api'
+    ]);
+    assert.equal(getDirectApiBaseUrl(), 'https://mambu.sourabhk1967.workers.dev/api');
+  } finally {
+    if (previousWindow === undefined) {
+      delete globalThis.window;
+    } else {
+      globalThis.window = previousWindow;
+    }
+  }
+});

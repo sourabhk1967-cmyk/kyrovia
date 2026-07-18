@@ -1411,12 +1411,14 @@ async function handleSendRequest(req, res, next) {
         }
       });
     };
-    abortOnClose = () => {
-      if (!res.writableEnded && !generationStarted) {
-        requestAbortController.abort();
-      }
-    };
-    res.once('close', abortOnClose);
+    if (!respondAsync) {
+      abortOnClose = () => {
+        if (!res.writableEnded && !generationStarted) {
+          requestAbortController.abort();
+        }
+      };
+      res.once('close', abortOnClose);
+    }
     if (respondAsync) {
       res.status(202).json({
         requestId: deliveryRequestId,

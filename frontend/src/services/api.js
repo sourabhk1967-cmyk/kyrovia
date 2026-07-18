@@ -38,10 +38,15 @@ const LEGACY_USER_KEY = 'chatgpt-proxy-user';
 const TRANSIENT_API_STATUSES = new Set([0, 408, 429, 502, 503, 504, 511, 524]);
 const DEFAULT_RETRY_DELAYS_MS = [500, 1500, 3000, 6000, 10000];
 const HOST_DIRECT_API_URLS = {
+  'mambu.sourabhk1967.workers.dev': '/api',
   'mambu.onrender.com': 'https://kyrovia.loca.lt/api',
   'mambu.in': 'https://kyrovia.loca.lt/api',
   'www.mambu.in': 'https://kyrovia.loca.lt/api'
 };
+
+function isCloudflareWorkersHost() {
+  return typeof window !== 'undefined' && /\.workers\.dev$/i.test(window.location.hostname);
+}
 
 function normalizeApiBaseUrl(value = '') {
   const rawValue = String(value || '').trim();
@@ -111,12 +116,14 @@ function resolveDirectApiBaseUrl() {
     typeof window !== 'undefined'
       ? HOST_DIRECT_API_URLS[window.location.hostname] || ''
       : '';
+  const sameOriginWorkerApi = isCloudflareWorkersHost() ? API_BASE_URL : '';
 
   return (
     urlValue ||
     readStoredDirectApiUrl() ||
     normalizeApiBaseUrl(DIRECT_API_URL) ||
-    normalizeApiBaseUrl(hostedDefault)
+    normalizeApiBaseUrl(hostedDefault) ||
+    normalizeApiBaseUrl(sameOriginWorkerApi)
   );
 }
 
