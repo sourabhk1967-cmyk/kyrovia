@@ -40,6 +40,7 @@ const TRANSIENT_API_STATUSES = new Set([0, 408, 429, 502, 503, 504, 511, 524]);
 const DEFAULT_RETRY_DELAYS_MS = [500, 1500, 3000, 6000, 10000];
 const DEFAULT_CLOUDFLARE_DIRECT_API_URL = 'https://kyrovia.loca.lt/api';
 const HOST_DIRECT_API_URLS = {
+  'mambu.sourabhk1967.workers.dev': DEFAULT_CLOUDFLARE_DIRECT_API_URL,
   'mambu.onrender.com': 'https://kyrovia.loca.lt/api',
   'mambu.in': 'https://kyrovia.loca.lt/api',
   'www.mambu.in': 'https://kyrovia.loca.lt/api'

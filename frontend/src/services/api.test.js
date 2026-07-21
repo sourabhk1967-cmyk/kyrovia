@@ -190,7 +190,7 @@ test('uses the Kyrovia laptop tunnel by default on the mambu Render host', () =>
   }
 });
 
-test('uses the deployed API path by default on Cloudflare Workers hosts', () => {
+test('uses the Kyrovia laptop tunnel by default on Cloudflare Workers hosts', () => {
   const previousWindow = globalThis.window;
 
   globalThis.window = {
@@ -209,8 +209,11 @@ test('uses the deployed API path by default on Cloudflare Workers hosts', () => 
   };
 
   try {
-    assert.deepEqual(candidateApiBaseUrls().slice(0, 2), ['/api']);
-    assert.equal(getDirectApiBaseUrl(), '');
+    assert.deepEqual(candidateApiBaseUrls().slice(0, 2), [
+      'https://kyrovia.loca.lt/api',
+      '/api'
+    ]);
+    assert.equal(getDirectApiBaseUrl(), 'https://kyrovia.loca.lt/api');
   } finally {
     if (previousWindow === undefined) {
       delete globalThis.window;
