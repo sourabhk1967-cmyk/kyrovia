@@ -34,8 +34,36 @@ jobs:
       - name: Build frontend assets
         run: npm run build
 
+      - name: Check Cloudflare deploy secrets
+        id: cloudflare-secrets
+        shell: bash
+        run: |
+          if [ -n "${CLOUDFLARE_API_TOKEN}" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "Cloudflare API token is configured."
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Cloudflare deploy skipped::Add repository secret CLOUDFLARE_API_TOKEN to deploy mambu.sourabhk1967.workers.dev automatically."
+          fi
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
       - name: Deploy to Cloudflare Workers
+        if: steps.cloudflare-secrets.outputs.ready == 'true'
         run: npx wrangler deploy --config wrangler.jsonc
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Report skipped deploy
+        if: steps.cloudflare-secrets.outputs.ready != 'true'
+        run: |
+          {
+            echo "### Cloudflare deploy skipped"
+            echo ""
+            echo "The frontend build succeeded, but GitHub cannot deploy the Worker until this repository has a CLOUDFLARE_API_TOKEN secret."
+            echo ""
+            echo "Add it in: Settings -> Secrets and variables -> Actions -> New repository secret."
+            echo ""
+            echo "The login fix is committed, but mambu.sourabhk1967.workers.dev will keep serving the old Worker until a deploy runs with that token."
+          } >> "$GITHUB_STEP_SUMMARY"
