@@ -11,6 +11,9 @@ const { GoogleAuth } = require('../backend/node_modules/google-auth-library');
 const port = Number(process.env.KYROVIA_TUNNEL_PORT || 5050);
 const localHost = process.env.KYROVIA_TUNNEL_HOST || '127.0.0.1';
 const requestedSubdomain = process.env.KYROVIA_TUNNEL_SUBDOMAIN || 'kyrovia';
+const allowOfferedSubdomain = !/^(0|false|no|off)$/i.test(
+  String(process.env.KYROVIA_TUNNEL_ALLOW_OFFERED_SUBDOMAIN || 'true')
+);
 const urlFile = path.join(__dirname, 'requested-public-url.txt');
 const providerFile = path.join(__dirname, 'requested-provider.txt');
 const serviceAccountPath = path.resolve(__dirname, '../backend/serviceAccountKey.json');
@@ -203,10 +206,16 @@ async function allocateNamedTunnel() {
       const publicUrl = body.url || '';
       const assignedHostname = publicUrl ? new URL(publicUrl).hostname.toLowerCase() : '';
 
-      if (assignedHostname !== requestedHostname) {
+      if (assignedHostname !== requestedHostname && !allowOfferedSubdomain) {
         throw new Error(
           `Requested hostname "${requestedHostname}" is unavailable; ` +
             `LocalTunnel offered "${assignedHostname || 'no hostname'}".`
+        );
+      }
+
+      if (assignedHostname !== requestedHostname) {
+        console.warn(
+          `Requested hostname "${requestedHostname}" is unavailable; using "${assignedHostname}" for this session.`
         );
       }
 
@@ -258,11 +267,17 @@ async function openTunnel() {
   const requestedHostname = `${requestedSubdomain}.loca.lt`.toLowerCase();
   const assignedHostname = new URL(tunnel.url).hostname.toLowerCase();
 
-  if (assignedHostname !== requestedHostname) {
+  if (assignedHostname !== requestedHostname && !allowOfferedSubdomain) {
     tunnel.close();
     throw new Error(
       `Requested hostname "${requestedHostname}" is unavailable; ` +
         `LocalTunnel offered "${assignedHostname}".`
+    );
+  }
+
+  if (assignedHostname !== requestedHostname) {
+    console.warn(
+      `Requested hostname "${requestedHostname}" is unavailable; using "${assignedHostname}" for this session.`
     );
   }
 

@@ -121,7 +121,7 @@ function writeStatus(extra = {}) {
 
   const activePublicUrl =
     publicHealthy
-      ? brandedPublicUrl
+      ? tunnelState?.publicUrl || brandedPublicUrl
       : enableFallback
         ? fallbackPublicUrl
         : tunnelState?.state === 'online' && tunnelState?.publicUrl
@@ -312,7 +312,8 @@ async function backendIsHealthy() {
 }
 
 async function publicTunnelHealth() {
-  const healthUrl = `${brandedPublicUrl}/api/health?supervisor=${Date.now()}`;
+  const publicUrl = currentTunnelPublicUrl();
+  const healthUrl = `${publicUrl}/api/health?supervisor=${Date.now()}`;
 
   try {
     const response = await fetch(healthUrl, {
@@ -349,6 +350,17 @@ async function publicTunnelHealth() {
     }
 
     return { healthy: false, status: 0 };
+  }
+}
+
+function currentTunnelPublicUrl() {
+  try {
+    const status = JSON.parse(
+      fs.readFileSync(path.join(__dirname, 'kyrovia-tunnel-status.json'), 'utf8')
+    );
+    return status.publicUrl || brandedPublicUrl;
+  } catch (_error) {
+    return brandedPublicUrl;
   }
 }
 
