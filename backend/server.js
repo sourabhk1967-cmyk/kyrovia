@@ -48,7 +48,33 @@ const frontendDist = path.resolve(__dirname, '../frontend/dist');
 const hasFrontendBuild = fs.existsSync(path.join(frontendDist, 'index.html'));
 const tunnelActivePublicUrlFile = path.resolve(__dirname, '../.tunnel/active-public-url.txt');
 
-function readActivePublicApiUrl() {
+function apiUrlFromRequestOrigin(req) {
+  const forwardedProto = String(req.get('x-forwarded-proto') || '').split(',')[0].trim();
+  const forwardedHost = String(req.get('x-forwarded-host') || '').split(',')[0].trim();
+  const origin = `${forwardedProto || req.protocol}://${forwardedHost || req.get('host')}`;
+
+  if (!isTrustedTunnelOrigin(origin)) {
+    return '';
+  }
+
+  try {
+    const parsedUrl = new URL(origin);
+    parsedUrl.pathname = '/api';
+    parsedUrl.search = '';
+    parsedUrl.hash = '';
+    return parsedUrl.toString().replace(/\/$/, '');
+  } catch (_error) {
+    return '';
+  }
+}
+
+function readActivePublicApiUrl(req) {
+  const requestApiUrl = req ? apiUrlFromRequestOrigin(req) : '';
+
+  if (requestApiUrl) {
+    return requestApiUrl;
+  }
+
   try {
     const publicUrl = fs.readFileSync(tunnelActivePublicUrlFile, 'utf8').trim();
 
@@ -153,10 +179,10 @@ app.use((req, res, next) => {
   next();
 });
 
-app.get('/.well-known/kyrovia-runtime.json', (_req, res) => {
+app.get('/.well-known/kyrovia-runtime.json', (req, res) => {
   res.set('Cache-Control', 'no-store');
   res.json({
-    apiBaseUrl: readActivePublicApiUrl(),
+    apiBaseUrl: readActivePublicApiUrl(req),
     checkedAt: new Date().toISOString()
   });
 });
